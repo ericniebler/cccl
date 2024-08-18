@@ -25,6 +25,7 @@
 #include <cuda/std/__concepts/copyable.h>
 #include <cuda/std/__concepts/movable.h>
 #include <cuda/std/__concepts/same_as.h>
+#include <cuda/std/__functional/invoke.h>
 #include <cuda/std/__type_traits/decay.h>
 #include <cuda/std/__type_traits/is_base_of.h>
 #include <cuda/std/__type_traits/is_valid_expansion.h>
@@ -36,6 +37,12 @@
 
 namespace cuda::experimental
 {
+template <class _Interface>
+struct __basic_any;
+
+struct _
+{};
+
 namespace detail
 {
 template <class _Ty, class _Uy>
@@ -46,6 +53,13 @@ using __members_of = typename _Interface::template members<_Ty>;
 
 template <class _Ty, class _Interface>
 _LIBCUDACXX_CONCEPT __satisfies = _CUDA_VSTD::_IsValidExpansion<__members_of, _Interface, _Ty>::value;
+
+_CCCL_GLOBAL_CONSTANT std::size_t __default_small_buffer_size = 3 * sizeof(void*);
+
+constexpr std::size_t __buffer_size(std::size_t __size) noexcept
+{
+  return 0 == __size ? __default_small_buffer_size : (__size < sizeof(void*) ? sizeof(void*) : __size);
+}
 
 template <std::size_t _Size>
 union __storage
@@ -61,119 +75,91 @@ template <class, auto _Mbr, bool, class = decltype(_Mbr)>
 extern int __vfn;
 
 template <class _Ty, auto _Mbr, bool _Tiny, class _Ret, class _Cy, class... _As>
+_Ret __vfn_impl(void* __pv, _As... __as)
+{
+  // __pv is a pointer to a __storage object.
+  _Cy* __obj = _Tiny ? static_cast<_Ty*>(__pv) : *static_cast<_Ty* const*>(__pv);
+  return _CUDA_VSTD::invoke(_Mbr, *__obj, static_cast<_As&&>(__as)...);
+}
+
+template <class _Ty, auto _Mbr, bool _Tiny, class _Ret, class _Cy, class... _As>
 _CCCL_GLOBAL_CONSTANT __fn_t<_Ret, void*, _As...>* __vfn<_Ty, _Mbr, _Tiny, _Ret (_Cy::*)(_As...)> =
-  +[](void* __pv, _As... __as) -> _Ret { // __pv is a pointer to a __storage object.
-  _Cy* __obj = _Tiny ? static_cast<_Ty*>(__pv) : *static_cast<_Ty**>(__pv);
-  return (__obj->*_Mbr)(static_cast<_As&&>(__as)...);
-};
+  &__vfn_impl<_Ty, _Mbr, _Tiny, _Ret, _Cy, _As...>;
 
 template <class _Ty, auto _Mbr, bool _Tiny, class _Ret, class _Cy, class... _As>
-_CCCL_GLOBAL_CONSTANT __fn_t<_Ret, void const*, _As...>* __vfn<_Ty, _Mbr, _Tiny, _Ret (_Cy::*)(_As...) const> =
-  +[](void const* __pv, _As... __as) -> _Ret { // __pv is a pointer to a __storage object.
-  _Cy const* __obj = _Tiny ? static_cast<_Ty const*>(__pv) : *static_cast<_Ty const* const*>(__pv);
-  return (__obj->*_Mbr)(static_cast<_As&&>(__as)...);
-};
+_CCCL_GLOBAL_CONSTANT __fn_t<_Ret, void*, _As...>* __vfn<_Ty, _Mbr, _Tiny, _Ret (_Cy::*)(_As...) const> =
+  &__vfn_impl<_Ty, _Mbr, _Tiny, _Ret, _Cy const, _As...>;
 
-template <class _Ty, auto _Mbr, bool _Tiny, class _Ret, class _Cy, class... _As>
-_CCCL_GLOBAL_CONSTANT __fn_t<_Ret, void*, _As...>* __vfn<_Ty, _Mbr, _Tiny, _Ret (*)(_Cy&, _As...)> =
-  +[](void* __pv, _As... __as) -> _Ret { // __pv is a pointer to a __storage object.
-  _Cy* __obj = _Tiny ? static_cast<_Ty*>(__pv) : *static_cast<_Ty**>(__pv);
-  return _Mbr(*__obj, static_cast<_As&&>(__as)...);
-};
-
-template <class _Ty, auto _Mbr, bool _Tiny, class _Ret, class _Cy, class... _As>
-_CCCL_GLOBAL_CONSTANT __fn_t<_Ret, void const*, _As...>* __vfn<_Ty, _Mbr, _Tiny, _Ret (*)(_Cy const&, _As...)> =
-  +[](void const* __pv, _As... __as) -> _Ret { // __pv is a pointer to a __storage object.
-  _Cy const* __obj = _Tiny ? static_cast<_Ty const*>(__pv) : *static_cast<_Ty const* const*>(__pv);
-  return _Mbr(*__obj, static_cast<_As&&>(__as)...);
-};
+template <class _Ty, auto _Fn, bool _Tiny, class _Ret, class _Cy, class... _As>
+_CCCL_GLOBAL_CONSTANT __fn_t<_Ret, void*, _As...>* __vfn<_Ty, _Fn, _Tiny, _Ret (*)(_Cy&, _As...)> =
+  &__vfn_impl<_Ty, _Fn, _Tiny, _Ret, _Cy, _As...>;
 
 template <class _Mbrs>
 using __vtable_of = typename _Mbrs::__vtable;
 
-template <class _Interface>
-using __base_vtable_of = typename _Interface::__base::__vtable;
+template <class... _VTbls>
+struct __vtable : _VTbls...
+{};
 
-template <class _Ty, auto _Mbr>
+template <auto _Mbr>
 struct __member
 {
-  using __fn_t = decltype(__vfn<_Ty, _Mbr, true>);
+  using __fn_t = decltype(__vfn<void, _Mbr, true>);
   __fn_t __fn_;
 };
 
 template <class _Ty, auto... _Mbrs>
 struct __members
 {
-  struct __vtable : __member<_Ty, _Mbrs>...
-  {};
+  using __vtable = detail::__vtable<__member<_Mbrs>...>;
 
-  template <class _VTable, bool _Tiny>
-  static constexpr _VTable __mk_vtable() noexcept
+  template <class _ISelf, bool _Tiny>
+  static constexpr auto __mk_vtable() noexcept
   {
-    return _VTable{{__vfn<_Ty, _Mbrs, _Tiny>}...};
+    return __vtable_of<__members_of<_ISelf>>{{__vfn<_Ty, _Mbrs, _Tiny>}...};
+  }
+};
+
+template <class _Interface, class _Any>
+using __rebind = typename _Interface::template __rebind<_Any>;
+
+template <class _Any, size_t Size = 0, class... _IBases>
+struct __interface;
+
+template <template <class...> class _Interface, class _Any, class... _Ts, size_t Size, class... _IBases>
+struct __interface<_Interface<_Any, _Ts...>, Size, _IBases...> : __rebind<_IBases, _Any>...
+{
+  static constexpr size_t __size = __buffer_size(Size);
+
+  using __any_t   = _Any;
+  using __iface_t = _Interface<_Any, _Ts...>;
+
+  template <class _NewAny>
+  using __rebind = _Interface<_NewAny, _Ts...>;
+
+  template <class _Ty, bool _Tiny>
+  static constexpr auto __mk_vtable() noexcept
+  {
+    return __vtable{detail::__rebind<_IBases, _Any>::template __mk_vtable<_Ty, _Tiny>()...,
+                    __members_of<__iface_t, _Ty>::template __mk_vtable<__iface_t, _Tiny>()};
   }
 };
 
 template <class _Interface>
-struct __extensible;
-
-template <template <class...> class _Interface, class _Base, class... _Ts>
-struct __extensible<_Interface<_Base, _Ts...>>
-{
-  using __base_t = _Base;
-
-  template <class _Derived>
-  using __rebind = _Interface<_Derived, _Ts...>;
-};
-
-template <class _Interface, class _Derived>
-using __rebind = typename _Interface::template __rebind<_Derived>;
-
-template <class... _Interfaces>
-struct __extends
-{
-  template <class _Derived>
-  struct __base : __rebind<_Interfaces, _Derived>...
-  {
-    struct __vtable : __vtable_of<__members_of<__rebind<_Interfaces, _Derived>, _Derived>>...
-    {};
-
-    template <class _Ty, bool _Tiny>
-    static constexpr __vtable __mk_vtable() noexcept
-    {
-      return __vtable{
-        {__members_of<__rebind<_Interfaces, _Derived>, _Ty>::
-           template __mk_vtable<__vtable_of<__members_of<__rebind<_Interfaces, _Derived>, _Derived>>, _Tiny>()}...};
-    }
-  };
-};
+using __base_vtable_of = decltype(_Interface::template __mk_vtable<_Interface, true>());
 
 template <class _Interface>
-struct __vtable_for
-    : __base_vtable_of<_Interface> // for base interfaces
-    , __vtable_of<__members_of<_Interface>>
-{
-  using __interface_t = _Interface;
+struct __poly_box;
 
+template <class _Interface>
+struct __vtable_for : __base_vtable_of<_Interface>
+{
   ::std::type_info const* __type_;
   bool __tiny_;
+  void* (*__getobj_)(__poly_box<_Interface> const*) noexcept;
   void (*__destroy_)(void*) noexcept;
   void (*__move_)(void*, void*) noexcept;
   void (*__copy_)(void*, void const*);
-
-  template <class _Ty>
-  _Ty& __as(void* __pv) const noexcept
-  {
-    _LIBCUDACXX_ASSERT(typeid(_Ty) == *__type_, "");
-    return __tiny_ ? *static_cast<_Ty*>(__pv) : **static_cast<_Ty**>(__pv);
-  }
-
-  template <class _Ty>
-  _Ty const& __as(void const* __pv) const noexcept
-  {
-    _LIBCUDACXX_ASSERT(typeid(_Ty) == *__type_, "");
-    return __tiny_ ? *static_cast<_Ty const*>(__pv) : **static_cast<_Ty const* const*>(__pv);
-  }
 };
 
 template <class _Ty, bool _Tiny>
@@ -222,18 +208,16 @@ void __copy_(void* __pv, void const* __other)
   }
 }
 
-template <class _Interface, std::size_t _Size>
-struct __basic_any_impl
+template <class _Interface>
+struct __poly_box
 {
-  using __interface_t = _Interface;
-
   _LIBCUDACXX_TEMPLATE(class _Obj, class _Ty = _CUDA_VSTD::decay_t<_Obj>)
-  _LIBCUDACXX_REQUIRES(__not_derived_from<_Obj, __basic_any_impl> _LIBCUDACXX_AND __satisfies<_Ty, _Interface>)
-  __basic_any_impl(_Obj&& __obj) //
-    noexcept(noexcept(_Ty(_CUDA_VSTD::declval<_Obj>())) && (sizeof(_Ty) <= _Size))
-      : __vptr_(__vptr_for<_Ty>())
+  _LIBCUDACXX_REQUIRES(__not_derived_from<_Obj, __poly_box> _LIBCUDACXX_AND __satisfies<_Ty, _Interface>)
+  __poly_box(_Obj&& __obj) //
+    noexcept(noexcept(_Ty(_CUDA_VSTD::declval<_Obj>())) && (sizeof(_Ty) <= _Interface::__size))
+      : __vptr_{__vptr_for<_Ty>()}
   {
-    if constexpr (sizeof(_Ty) <= _Size)
+    if constexpr (sizeof(_Ty) <= _Interface::__size)
     {
       ::new (static_cast<void*>(__obj_.__buffer_)) _Ty(static_cast<_Obj&&>(__obj));
     }
@@ -245,51 +229,49 @@ struct __basic_any_impl
 
   _LIBCUDACXX_TEMPLATE(class _Cy = _Interface)
   _LIBCUDACXX_REQUIRES(_CUDA_VSTD::move_constructible<_Cy>)
-  __basic_any_impl(__basic_any_impl&& __other) noexcept
-      : __vptr_(_CUDA_VSTD::exchange(__other.__vptr_, nullptr))
+  __poly_box(__poly_box&& __other) noexcept
   {
-    if (__vptr_)
+    if ((__vptr_ = _CUDA_VSTD::exchange(__other.__vptr_, nullptr)))
     {
-      __vptr()->__move_(&__obj_, &__other.__obj_);
+      __vptr_->__move_(&__obj_, &__other.__obj_);
     }
   }
 
   _LIBCUDACXX_TEMPLATE(class _Cy = _Interface)
   _LIBCUDACXX_REQUIRES(_CUDA_VSTD::copy_constructible<_Cy>)
-  __basic_any_impl(__basic_any_impl const& __other)
-      : __vptr_(__other.__vptr_)
+  __poly_box(__poly_box const& __other)
   {
-    if (__vptr_)
+    if ((__vptr_ = __other.__vptr_))
     {
-      __vptr()->__copy_(&__obj_, &__other.__obj_);
+      __vptr_->__copy_(&__obj_, &__other.__obj_);
     }
   }
 
-  ~__basic_any_impl()
+  ~__poly_box()
   {
     if (__vptr_)
     {
-      __vptr()->__destroy_(&__obj_);
+      __vptr_->__destroy_(&__obj_);
     }
   }
 
   _LIBCUDACXX_TEMPLATE(class _Cy = _Interface)
   _LIBCUDACXX_REQUIRES(_CUDA_VSTD::movable<_Cy>)
   [[maybe_unused]]
-  __basic_any_impl& operator=(__basic_any_impl&& __other) noexcept
+  __poly_box& operator=(__poly_box&& __other) noexcept
   {
     if (this != &__other)
     {
       if (__vptr_)
       {
-        __vptr()->__destroy_(&__obj_);
+        __vptr_->__destroy_(&__obj_);
         __vptr_ = nullptr;
       }
 
       if (__other.__vptr_)
       {
         __vptr_ = _CUDA_VSTD::exchange(__other.__vptr_, nullptr);
-        __vptr()->__move_(&__obj_, &__other.__obj_);
+        __vptr_->__move_(&__obj_, &__other.__obj_);
       }
     }
 
@@ -299,23 +281,26 @@ struct __basic_any_impl
   _LIBCUDACXX_TEMPLATE(class _Cy = _Interface)
   _LIBCUDACXX_REQUIRES(_CUDA_VSTD::copyable<_Cy>)
   [[maybe_unused]]
-  __basic_any_impl& operator=(__basic_any_impl const& __other)
+  __poly_box& operator=(__poly_box const& __other)
   {
-    return this == &__other ? *this : operator=(__basic_any_impl(__other));
+    return this == &__other ? *this : operator=(__poly_box(__other));
+  }
+
+  static void* __getobj_(__poly_box const* __base) noexcept
+  {
+    return const_cast<void*>(static_cast<void const*>(&static_cast<__poly_box<_Interface> const*>(__base)->__obj_));
   }
 
   template <class _Ty>
-  static void const* __vptr_for() noexcept
+  static __vtable_for<_Interface> const* __vptr_for() noexcept
   {
-    using __vtable_t      = __vtable_for<_Interface>;
-    using __vtable_base_t = __vtable_of<__members_of<_Interface>>;
-    constexpr bool __tiny = (sizeof(_Ty) <= _Size);
+    constexpr bool __tiny = (sizeof(_Ty) <= _Interface::__size);
 
-    static constexpr __vtable_t __s_vtable{
+    static constexpr __vtable_for<_Interface> __s_vtable{
       _Interface::template __mk_vtable<_Ty, __tiny>(),
-      __members_of<_Interface, _Ty>::template __mk_vtable<__vtable_base_t, __tiny>(),
       &typeid(_Ty),
       __tiny,
+      &__getobj_,
       &__destroy_<_Ty, __tiny>,
       &__move_<_Ty, __tiny>,
       &__copy_<_Ty, __tiny>};
@@ -323,49 +308,52 @@ struct __basic_any_impl
     return &__s_vtable;
   }
 
-  auto __vptr() const noexcept
+  template <class _Ty>
+  _Ty& __cast() noexcept
   {
-    return static_cast<__vtable_for<_Interface> const*>(__vptr_);
+    static_assert(_CUDA_VSTD::same_as<_Ty, _CUDA_VSTD::decay_t<_Ty>>);
+    constexpr bool __tiny = (sizeof(_Ty) <= _Interface::__size);
+    _LIBCUDACXX_ASSERT(typeid(_Ty) == *__vptr_->__type_, "");
+    return __tiny ? *static_cast<_Ty*>((void*) &__obj_) : **static_cast<_Ty**>((void*) &__obj_);
   }
 
-  void const* __vptr_{};
-  __storage<_Size> __obj_{};
+  template <class _Ty>
+  _Ty const& __cast() const noexcept
+  {
+    static_assert(_CUDA_VSTD::same_as<_Ty, _CUDA_VSTD::decay_t<_Ty>>);
+    constexpr bool __tiny = (sizeof(_Ty) <= _Interface::__size);
+    _LIBCUDACXX_ASSERT(typeid(_Ty) == *__vptr_->__type_, "");
+    return __tiny ? *static_cast<_Ty const*>((void const*) &__obj_) : **static_cast<_Ty const* const*>((void*) &__obj_);
+  }
+
+  __vtable_for<_Interface> const* __vptr_{};
+  __storage<_Interface::__size> __obj_{};
 };
 
-_CCCL_GLOBAL_CONSTANT std::size_t __default_small_buffer_size = 3 * sizeof(void*);
-
-constexpr std::size_t __buffer_size(std::size_t __size) noexcept
+template <class _Self>
+auto __get_poly_box(_Self& __self) noexcept -> decltype(auto)
 {
-  return 0 == __size ? __default_small_buffer_size : (__size < sizeof(void*) ? sizeof(void*) : __size);
+  using __any_t = typename _Self::__any_t;
+  using __box_t = typename __any_t::__box_t;
+  // C-style cast to skip accessibility check:
+  return (__box_t&) static_cast<__any_t&>(__self);
 }
 
-template <class _Self, class _Base>
-auto __basic_any_cast(_Base& __base) noexcept -> typename _Self::__basic_any_t&
+template <class _Self>
+auto __get_poly_box(_Self const& __self) noexcept -> decltype(auto)
 {
-  static_assert(_CUDA_VSTD::same_as<_Self, typename _Base::__base_t>);
-  using __basic_any_t = typename _Self::__basic_any_t;
-  static_assert(_CUDA_VSTD::is_base_of_v<__basic_any_t, _Self>);
+  using __any_t = typename _Self::__any_t;
+  using __box_t = typename __any_t::__box_t;
   // C-style cast to skip accessibility check:
-  return (__basic_any_t&) static_cast<_Self&>(__base);
-}
-
-template <class _Self, class _Base>
-auto __basic_any_cast(_Base const& __base) noexcept -> typename _Self::__basic_any_t const&
-{
-  static_assert(_CUDA_VSTD::same_as<_Self, typename _Base::__base_t>);
-  using __basic_any_t = typename _Self::__basic_any_t;
-  static_assert(_CUDA_VSTD::is_base_of_v<__basic_any_t, _Self>);
-  // C-style cast to skip accessibility check:
-  return (__basic_any_t const&) static_cast<_Self const&>(__base);
+  return (__box_t const&) static_cast<__any_t const&>(__self);
 }
 
 template <auto _Mbr, class _Ret, class _Cy, class... _As>
 _Ret __vcall_impl(_Cy& __self, _As... __as)
 {
-  using __self_t                       = typename _Cy::__base_t;
-  auto& __base                         = detail::__basic_any_cast<__self_t>(__self);
-  const __member<__self_t, _Mbr> __mbr = *__base.__vptr();
-  return __mbr.__fn_(&__base.__obj_, static_cast<_As&&>(__as)...);
+  auto& __box = detail::__get_poly_box(__self);
+  auto __fn   = __box.__vptr_->__member<_Mbr>::__fn_;
+  return __fn((void*) &__box.__obj_, static_cast<_As&&>(__as)...);
 }
 
 template <auto _Mbr, class = decltype(_Mbr)>
@@ -387,8 +375,8 @@ _CCCL_GLOBAL_CONSTANT auto __vcall<_Mbr, _Ret (*)(_Cy&, _As...)> = &__vcall_impl
 template <auto _Mbr, class _Ret, class _Cy, class... _As>
 _CCCL_GLOBAL_CONSTANT auto __vcall<_Mbr, _Ret (*)(_Cy const&, _As...)> = &__vcall_impl<_Mbr, _Ret, _Cy const, _As...>;
 
-template <class _Self>
-struct __any_immovable : __extensible<__any_immovable<_Self>>
+template <class _Self = _>
+struct __any_immovable : __interface<__any_immovable<_Self>>
 {
   __any_immovable()                                  = default;
   __any_immovable(__any_immovable&&)                 = delete;
@@ -400,8 +388,8 @@ struct __any_immovable : __extensible<__any_immovable<_Self>>
   using members = __members<_Ty>;
 };
 
-template <class _Self>
-struct __any_moveonly : __extensible<__any_moveonly<_Self>>
+template <class _Self = _>
+struct __any_moveonly : __interface<__any_moveonly<_Self>>
 {
   __any_moveonly()                                 = default;
   __any_moveonly(__any_moveonly&&)                 = default;
@@ -413,30 +401,45 @@ struct __any_moveonly : __extensible<__any_moveonly<_Self>>
   using members = __members<_Ty>;
 };
 
-template <class _Self>
-struct __any_equality_comparable : __extensible<__any_equality_comparable<_Self>>
+template <class _Self = _>
+struct __any_equality_comparable : __interface<__any_equality_comparable<_Self>>
 {
   template <class _Ty>
-  static auto __equal(_Ty const& __lhs, _Self const& __rhs) -> decltype(__lhs == __lhs)
+  static constexpr bool __not_self = !_CUDA_VSTD::same_as<_Ty, __any_equality_comparable>;
+
+  template <class _Ty>
+  using __equal_fn_t = __fn_t<bool, _Ty const&, __any_equality_comparable const&>;
+
+  template <class _Ty, _CUDA_VSTD::enable_if_t<__not_self<_Ty>, int> _Enable = 0>
+  static auto __equal(_Ty const& __lhs, __any_equality_comparable const& __rhs) -> decltype(__lhs == __lhs)
   {
-    auto& __rhs_base = detail::__basic_any_cast<_Self>(__rhs);
-    return __lhs == __rhs_base.__vptr()->template __as<_Ty>(&__rhs_base.__obj_);
+    auto& __rhs_base = detail::__get_poly_box(__rhs);
+    return __lhs == __rhs_base.template __cast<_Ty>();
+  }
+
+  static auto __equal(__any_equality_comparable const& __lhs, __any_equality_comparable const& __rhs) -> bool
+  {
+    return true;
   }
 
   friend bool operator==(const _Self& __lhs, const _Self& __rhs)
   {
-    auto& __lhs_base = detail::__basic_any_cast<_Self>(__lhs);
-    auto& __rhs_base = detail::__basic_any_cast<_Self>(__rhs);
+    __any_equality_comparable const& __lhs2 = __lhs;
+    __any_equality_comparable const& __rhs2 = __rhs;
 
-    _LIBCUDACXX_ASSERT(__lhs_base.__vptr_ && __rhs_base.__vptr_, "comparison to moved-from object");
+    auto& __lhs_box = detail::__get_poly_box(__lhs2);
+    auto& __rhs_box = detail::__get_poly_box(__rhs2);
+
+    _LIBCUDACXX_ASSERT(__lhs_box.__vptr_ && __rhs_box.__vptr_, "comparison to moved-from object");
 
     // Check that the two objects contain the same type:
-    if (*__lhs_base.__vptr()->__type_ != *__rhs_base.__vptr()->__type_)
+    if (*__lhs_box.__vptr_->__type_ != *__rhs_box.__vptr_->__type_)
     {
       return false;
     }
 
-    return __vcall<&__equal<_Self>>(__lhs, __rhs);
+    constexpr __equal_fn_t<__any_equality_comparable>* __eq = &__equal;
+    return __vcall<__eq>(__lhs2, __rhs2);
   }
 
   friend bool operator!=(const _Self& __lhs, const _Self& __rhs)
@@ -445,7 +448,7 @@ struct __any_equality_comparable : __extensible<__any_equality_comparable<_Self>
   }
 
   template <class _Ty>
-  using members = __members<_Ty, &__equal<_Ty>>;
+  using members = __members<_Ty, static_cast<__equal_fn_t<_Ty>*>(&__equal)>;
 };
 
 } // namespace detail
@@ -453,20 +456,23 @@ struct __any_equality_comparable : __extensible<__any_equality_comparable<_Self>
 template <class _Interface, auto... _Mbrs>
 using __members = detail::__members<_Interface, _Mbrs...>;
 
-template <class _Interface>
-using __extensible = detail::__extensible<_Interface>;
+template <class _ISelf, size_t Size = 0, class... _IBases>
+using __interface = detail::__interface<_ISelf, Size, _IBases...>;
 
-template <class _Interface, std::size_t _Size = 0, class... _BaseInterfaces>
+template <class _Interface>
+using __finalize = detail::__rebind<_Interface, typename _Interface::__any_t>;
+
+template <class _Interface>
 struct __basic_any
-    : private detail::__basic_any_impl<_Interface, detail::__buffer_size(_Size)>
-    , detail::__extends<_BaseInterfaces...>::template __base<_Interface>
+    : __finalize<_Interface>
+    , private detail::__poly_box<__finalize<_Interface>>
 {
-  using __basic_any_t = detail::__basic_any_impl<_Interface, detail::__buffer_size(_Size)>;
+  using __box_t = detail::__poly_box<__finalize<_Interface>>;
 
   _LIBCUDACXX_TEMPLATE(class _Obj)
-  _LIBCUDACXX_REQUIRES(_CUDA_VSTD::constructible_from<__basic_any_t, _Obj>)
-  __basic_any(_Obj&& __obj) noexcept(noexcept(__basic_any_t(static_cast<_Obj&&>(__obj))))
-      : __basic_any_t(static_cast<_Obj&&>(__obj))
+  _LIBCUDACXX_REQUIRES(_CUDA_VSTD::constructible_from<__box_t, _Obj>)
+  __basic_any(_Obj&& __obj) noexcept(noexcept(__box_t(static_cast<_Obj&&>(__obj))))
+      : __box_t(static_cast<_Obj&&>(__obj))
   {}
 };
 
@@ -480,23 +486,17 @@ using detail::__vcall;
   {}                                                                                                        \
   using __dummy = void
 
-struct __any_immovable
-    : detail::__any_immovable<__any_immovable>
-    , __basic_any<__any_immovable>
+struct __any_immovable : __basic_any<detail::__any_immovable<__any_immovable>>
 {
   _CUDAX_INHERIT_BASIC_ANY_CTOR(__any_immovable);
 };
 
-struct __any_moveonly
-    : detail::__any_moveonly<__any_moveonly>
-    , __basic_any<__any_moveonly>
+struct __any_moveonly : __basic_any<detail::__any_moveonly<__any_moveonly>>
 {
   _CUDAX_INHERIT_BASIC_ANY_CTOR(__any_moveonly);
 };
 
-struct __any_equality_comparable
-    : detail::__any_equality_comparable<__any_equality_comparable>
-    , __basic_any<__any_equality_comparable>
+struct __any_equality_comparable : __basic_any<detail::__any_equality_comparable<__any_equality_comparable>>
 {
   _CUDAX_INHERIT_BASIC_ANY_CTOR(__any_equality_comparable);
 };

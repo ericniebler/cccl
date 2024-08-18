@@ -17,24 +17,25 @@
 
 namespace cuda::experimental
 {
-namespace detail
-{
 template <class _Self, class _Property>
-struct __any_property : __extensible<__any_property<_Self, _Property>>
+struct __any_property : __interface<__any_property<_Self, _Property>>
 {
   friend constexpr void get_property(_Self const& __self, _Property __prop) noexcept {}
 
   template <class _Ty>
   using members = __members<_Ty>;
 };
-} // namespace detail
 
-template <class _Property>
-struct __any_property : detail::__any_property<__any_property<_Property>, _Property>
+template <class _Self, class... _Properties>
+struct __any_resource
+    : __interface<__any_resource<_Self, _Properties...>,
+                  0,
+                  detail::__any_equality_comparable<>,
+                  __any_property<_, _Properties>...>
 {};
 
 template <class... _Properties>
-struct any_resource : __basic_any<any_resource<_Properties...>, 0, __any_property<_Properties>...>
+struct any_resource : __basic_any<__any_resource<any_resource<_Properties...>, _Properties...>>
 {
   _CUDAX_INHERIT_BASIC_ANY_CTOR(any_resource);
 
