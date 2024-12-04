@@ -13,6 +13,8 @@
 #include <cuda_runtime.h>
 
 #include <cuda/std/__exception/cuda_error.h>
+#include <cuda/std/tuple>
+#include <cuda/std/utility>
 #include <cuda/stream_ref>
 
 #include <cuda/experimental/__launch/configuration.cuh>
@@ -269,6 +271,39 @@ void launch(::cuda::stream_ref stream,
   {
     ::cuda::__throw_cuda_error(status, "Failed to launch a kernel");
   }
+}
+
+struct unit
+{};
+
+template <class _Config, class _Kernel, class... _Args>
+struct __launch_action
+{
+  explicit __launch_action(_Config __config, _Kernel __kernel_fn, _Args&&... __args)
+      : __config_(_CUDA_VSTD::move(__config))
+      , __kernel_fn_(_CUDA_VSTD::move(__kernel_fn))
+      , __args_(_CUDA_VSTD::move(__args)...)
+  {}
+
+  unit __enqueue(stream_ref __stream)
+  {
+    auto __fn = [__stream, this](_Args&... __args) {
+      cuda::experimental::launch(__stream, __config_, __kernel_fn_, __args...);
+    };
+    _CUDA_VSTD::apply(__fn, __args_);
+    return {};
+  }
+
+private:
+  _Config __config_;
+  _Kernel __kernel_fn_;
+  _CUDA_VSTD::tuple<_Args...> __args_;
+};
+
+template <typename _Kernel, typename... _ActArgs, typename... Config, typename Dimensions>
+auto launch(const kernel_config<Dimensions, Config...>& __dims, _Kernel __kernel_fn, _ActArgs... __args)
+{
+  return __launch_action{kernel_config(__dims), __kernel_fn, _CUDA_VSTD::move(__args)...};
 }
 
 } // namespace cuda::experimental

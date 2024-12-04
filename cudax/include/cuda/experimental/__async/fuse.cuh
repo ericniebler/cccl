@@ -8,8 +8,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef __CUDAX_ASYNC_SEQUENCE__
-#define __CUDAX_ASYNC_SEQUENCE__
+#ifndef __CUDAX_ASYNC_FUSE__
+#define __CUDAX_ASYNC_FUSE__
 
 #include <cuda/__cccl_config>
 
@@ -21,26 +21,23 @@
 #  pragma system_header
 #endif // no system header
 
-#include <cuda/experimental/__async/sender/completion_signatures.cuh>
-#include <cuda/experimental/__async/sender/cpos.cuh>
-#include <cuda/experimental/__async/sender/exception.cuh>
-#include <cuda/experimental/__async/sender/lazy.cuh>
-#include <cuda/experimental/__async/sender/rcvr_ref.cuh>
-#include <cuda/experimental/__async/sender/variant.cuh>
+#include <cuda/std/tuple>
+#include <cuda/std/utility>
 
-#include <cuda/experimental/__async/sender/prologue.cuh>
+#include <cuda/experimental/__async/future.cuh>
+#include <cuda/experimental/__stream/stream_ref.cuh>
 
 namespace cuda::experimental
 {
 
 template <class... _Values>
-struct __sequence_value
+struct __fuse_value
 {
-  friend auto __cudax_unpack_future(__sequence_value<_Values...>& __self)
+  friend auto __cudax_unpack_future(__fuse_value& __self) -> _CUDA_VSTD::tuple<__unpack_result_t<_Values&>...>
   {
     return _CUDA_VSTD::apply(
       [](_Values&... __values) {
-        return (__unpack(__values), ...); // return the last
+        return _CUDA_VSTD::tuple(__unpack(__values)...);
       },
       __self.__values_);
   }
@@ -49,15 +46,15 @@ struct __sequence_value
 };
 
 template <typename... _Actions>
-struct __sequence_action
+struct __fuse_action
 {
-  using __sequence_value_t = __sequence_value<__action_result_t<_Actions>...>;
+  using __fuse_value_t = __fuse_value<__action_result_t<_Actions>...>;
 
-  __sequence_value_t __enqueue(stream_ref __stream) &&
+  __fuse_value_t __enqueue(stream_ref __stream) &&
   {
     return _CUDA_VSTD::apply(
       [__stream](auto&... __actions) {
-        return __sequence_value_t{{_CUDA_VSTD::move(__actions).__enqueue(__stream)...}};
+        return __fuse_value_t{{_CUDA_VSTD::move(__actions).__enqueue(__stream)...}};
       },
       __actions_);
   }
@@ -67,15 +64,10 @@ struct __sequence_action
 
 _CCCL_TEMPLATE(typename... _Actions)
 _CCCL_REQUIRES((__is_cudax_action<_Actions> && ...))
-__sequence_action<_Actions...> sequence(_Actions... __actions)
+__fuse_action<_Actions...> fuse(_Actions... __actions)
 {
-  return __sequence_action<_Actions...>{{_CUDA_VSTD::move(__actions)...}};
+  return __fuse_action<_Actions...>{{_CUDA_VSTD::move(__actions)...}};
 }
 
-using sequence_t = __seq;
-_CCCL_GLOBAL_CONSTANT sequence_t sequence{};
 } // namespace cuda::experimental
-
-#include <cuda/experimental/__async/sender/epilogue.cuh>
-
-#endif
+#endif // __CUDAX_ASYNC_FUSE__

@@ -23,6 +23,8 @@
 #include <cuda_runtime_api.h>
 
 #include <cuda/std/__cuda/api_wrapper.h>
+#include <cuda/std/__type_traits/decay.h>
+#include <cuda/std/__type_traits/remove_pointer.h>
 #include <cuda/stream_ref>
 
 #include <cuda/experimental/__detail/config.cuh>
@@ -85,6 +87,9 @@ struct stream_ref : ::cuda::stream_ref
   {
     return timed_event(*this, __flags);
   }
+
+  template <class _Action>
+  _CUDAX_HOST_API decltype(auto) push(_Action __action);
 
   //! \brief Synchronizes the wrapped stream.
   //!
@@ -174,6 +179,28 @@ struct stream_ref : ::cuda::stream_ref
   }
 };
 
+} // namespace cuda::experimental
+
+// This needs to be here at the bottom of the file because of the circular
+// dependency between future and stream_ref.
+#include <cuda/experimental/__async/future.cuh>
+
+namespace cuda::experimental
+{
+template <class _Action>
+_CUDAX_HOST_API decltype(auto) stream_ref::push(_Action __action)
+{
+  using __value_t = _CUDA_VSTD::remove_pointer_t<_CUDA_VSTD::decay_t<__action_result_t<_Action>>>;
+  // avoid returning a future of a future:
+  if constexpr (__is_cudax_future<__value_t>)
+  {
+    return _CUDA_VSTD::move(__action).__enqueue(*this);
+  }
+  else
+  {
+    return __make_future(_CUDA_VSTD::move(__action), *this);
+  }
+}
 } // namespace cuda::experimental
 
 #endif // _CUDAX__STREAM_STREAM_REF

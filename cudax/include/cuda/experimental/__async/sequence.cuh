@@ -21,14 +21,11 @@
 #  pragma system_header
 #endif // no system header
 
-#include <cuda/experimental/__async/sender/completion_signatures.cuh>
-#include <cuda/experimental/__async/sender/cpos.cuh>
-#include <cuda/experimental/__async/sender/exception.cuh>
-#include <cuda/experimental/__async/sender/lazy.cuh>
-#include <cuda/experimental/__async/sender/rcvr_ref.cuh>
-#include <cuda/experimental/__async/sender/variant.cuh>
+#include <cuda/std/tuple>
+#include <cuda/std/utility>
 
-#include <cuda/experimental/__async/sender/prologue.cuh>
+#include <cuda/experimental/__async/future.cuh>
+#include <cuda/experimental/__stream/stream_ref.cuh>
 
 namespace cuda::experimental
 {
@@ -36,7 +33,7 @@ namespace cuda::experimental
 template <class... _Values>
 struct __sequence_value
 {
-  friend auto __cudax_unpack_future(__sequence_value<_Values...>& __self)
+  friend auto __cudax_unpack_future(__sequence_value& __self)
   {
     return _CUDA_VSTD::apply(
       [](_Values&... __values) {
@@ -72,10 +69,5 @@ __sequence_action<_Actions...> sequence(_Actions... __actions)
   return __sequence_action<_Actions...>{{_CUDA_VSTD::move(__actions)...}};
 }
 
-using sequence_t = __seq;
-_CCCL_GLOBAL_CONSTANT sequence_t sequence{};
 } // namespace cuda::experimental
-
-#include <cuda/experimental/__async/sender/epilogue.cuh>
-
-#endif
+#endif // __CUDAX_ASYNC_SEQUENCE__
