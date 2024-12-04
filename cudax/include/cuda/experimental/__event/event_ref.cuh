@@ -72,7 +72,7 @@ public:
   //! @param __stream
   //!
   //! @throws cuda_error if the event record fails
-  void record(stream_ref __stream) const
+  void record(cuda::stream_ref __stream) const
   {
     _CCCL_ASSERT(__event_ != nullptr, "cuda::experimental::event_ref::record no event set");
     _CCCL_ASSERT(__stream.get() != nullptr, "cuda::experimental::event_ref::record invalid stream passed");

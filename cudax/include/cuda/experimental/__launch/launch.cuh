@@ -10,11 +10,25 @@
 
 #ifndef _CUDAX__LAUNCH_LAUNCH
 #define _CUDAX__LAUNCH_LAUNCH
+
+#include <cuda/std/detail/__config>
+
+#if defined(_CCCL_IMPLICIT_SYSTEM_HEADER_GCC)
+#  pragma GCC system_header
+#elif defined(_CCCL_IMPLICIT_SYSTEM_HEADER_CLANG)
+#  pragma clang system_header
+#elif defined(_CCCL_IMPLICIT_SYSTEM_HEADER_MSVC)
+#  pragma system_header
+#endif // no system header
+
 #include <cuda_runtime.h>
 
 #include <cuda/std/__exception/cuda_error.h>
+#include <cuda/std/tuple>
+#include <cuda/std/utility>
 #include <cuda/stream_ref>
 
+#include <cuda/experimental/__async/future_fwd.cuh>
 #include <cuda/experimental/__launch/configuration.cuh>
 #include <cuda/experimental/__launch/launch_transform.cuh>
 #include <cuda/experimental/__utility/ensure_current_device.cuh>
@@ -124,33 +138,33 @@ void launch(
   ::cuda::stream_ref stream, const kernel_config<Dimensions, Config...>& conf, const Kernel& kernel, Args&&... args)
 {
   __ensure_current_device __dev_setter(stream);
-  cudaError_t status;
   auto combined = conf.combine_with_default(kernel);
+
   if constexpr (::cuda::std::is_invocable_v<Kernel, kernel_config<Dimensions, Config...>, as_kernel_arg_t<Args>...>)
   {
     auto launcher = detail::kernel_launcher<decltype(combined), Kernel, as_kernel_arg_t<Args>...>;
-    status        = detail::launch_impl(
+    _CCCL_TRY_CUDA_API(
+      detail::launch_impl,
+      "Failed to launch a kernel",
       stream,
       combined,
       launcher,
       combined,
       kernel,
-      static_cast<as_kernel_arg_t<Args>>(detail::__launch_transform(stream, std::forward<Args>(args)))...);
+      static_cast<as_kernel_arg_t<Args>>(detail::__launch_transform(stream, _CUDA_VSTD::forward<Args>(args)))...);
   }
   else
   {
     static_assert(::cuda::std::is_invocable_v<Kernel, as_kernel_arg_t<Args>...>);
     auto launcher = detail::kernel_launcher_no_config<Kernel, as_kernel_arg_t<Args>...>;
-    status        = detail::launch_impl(
+    _CCCL_TRY_CUDA_API(
+      detail::launch_impl,
+      "Failed to launch a kernel",
       stream,
       combined,
       launcher,
       kernel,
-      static_cast<as_kernel_arg_t<Args>>(detail::__launch_transform(stream, std::forward<Args>(args)))...);
-  }
-  if (status != cudaSuccess)
-  {
-    ::cuda::__throw_cuda_error(status, "Failed to launch a kernel");
+      static_cast<as_kernel_arg_t<Args>>(detail::__launch_transform(stream, _CUDA_VSTD::forward<Args>(args)))...);
   }
 }
 
@@ -201,17 +215,14 @@ void launch(::cuda::stream_ref stream,
             ActArgs&&... args)
 {
   __ensure_current_device __dev_setter(stream);
-  cudaError_t status = detail::launch_impl(
-    stream, //
+  _CCCL_TRY_CUDA_API(
+    detail::launch_impl,
+    "Failed to launch a kernel",
+    stream,
     conf,
     kernel,
     conf,
-    static_cast<as_kernel_arg_t<ActArgs>>(detail::__launch_transform(stream, std::forward<ActArgs>(args)))...);
-
-  if (status != cudaSuccess)
-  {
-    ::cuda::__throw_cuda_error(status, "Failed to launch a kernel");
-  }
+    static_cast<as_kernel_arg_t<ActArgs>>(detail::__launch_transform(stream, _CUDA_VSTD::forward<ActArgs>(args)))...);
 }
 
 /**
@@ -260,16 +271,44 @@ void launch(::cuda::stream_ref stream,
             ActArgs&&... args)
 {
   __ensure_current_device __dev_setter(stream);
-  cudaError_t status = detail::launch_impl(
-    stream, //
+  _CCCL_TRY_CUDA_API(
+    detail::launch_impl,
+    "Failed to launch a kernel",
+    stream,
     conf,
     kernel,
-    static_cast<as_kernel_arg_t<ActArgs>>(detail::__launch_transform(stream, std::forward<ActArgs>(args)))...);
+    static_cast<as_kernel_arg_t<ActArgs>>(detail::__launch_transform(stream, _CUDA_VSTD::forward<ActArgs>(args)))...);
+}
 
-  if (status != cudaSuccess)
+template <class _Config, class _Kernel, class... _Args>
+struct __launch_action
+{
+  explicit __launch_action(_Config __config, _Kernel __kernel_fn, _Args&&... __args)
+      : __config_(_CUDA_VSTD::move(__config))
+      , __kernel_fn_(_CUDA_VSTD::move(__kernel_fn))
+      , __args_(_CUDA_VSTD::move(__args)...)
+  {}
+
+  auto __enqueue(cuda::stream_ref __stream) -> _CUDA_VSTD::tuple<__unpack_result_t<_Args>...>
   {
-    ::cuda::__throw_cuda_error(status, "Failed to launch a kernel");
+    using __tuple_t = _CUDA_VSTD::tuple<__unpack_result_t<_Args>...>;
+    auto __fn       = [__stream, this](_Args&... __args) {
+      cuda::experimental::launch(__stream, __config_, __kernel_fn_, __args...);
+      return __tuple_t(__unpack(_CUDA_VSTD::move(__args))...);
+    };
+    return _CUDA_VSTD::apply(__fn, __args_);
   }
+
+private:
+  _Config __config_;
+  _Kernel __kernel_fn_;
+  _CUDA_VSTD::tuple<_Args...> __args_;
+};
+
+template <typename _Kernel, typename... _ActArgs, typename... Config, typename Dimensions>
+auto launch(const kernel_config<Dimensions, Config...>& __dims, _Kernel __kernel_fn, _ActArgs... __args)
+{
+  return __launch_action{kernel_config(__dims), __kernel_fn, _CUDA_VSTD::move(__args)...};
 }
 
 } // namespace cuda::experimental

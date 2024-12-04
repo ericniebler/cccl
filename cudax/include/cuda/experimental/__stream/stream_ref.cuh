@@ -12,6 +12,7 @@
 #define _CUDAX__STREAM_STREAM_REF
 
 #include <cuda/std/detail/__config>
+
 #if defined(_CCCL_IMPLICIT_SYSTEM_HEADER_GCC)
 #  pragma GCC system_header
 #elif defined(_CCCL_IMPLICIT_SYSTEM_HEADER_CLANG)
@@ -23,8 +24,11 @@
 #include <cuda_runtime_api.h>
 
 #include <cuda/std/__cuda/api_wrapper.h>
+#include <cuda/std/__type_traits/decay.h>
+#include <cuda/std/__type_traits/remove_pointer.h>
 #include <cuda/stream_ref>
 
+#include <cuda/experimental/__async/future_fwd.cuh>
 #include <cuda/experimental/__detail/config.cuh>
 #include <cuda/experimental/__device/all_devices.cuh>
 #include <cuda/experimental/__device/logical_device.cuh>
@@ -38,7 +42,7 @@ namespace detail
 {
 // 0 is a valid stream in CUDA, so we need some other invalid stream representation
 // Can't make it constexpr, because cudaStream_t is a pointer type
-static const ::cudaStream_t __invalid_stream = reinterpret_cast<cudaStream_t>(~0ULL);
+const ::cudaStream_t __invalid_stream = reinterpret_cast<cudaStream_t>(~0ULL);
 } // namespace detail
 
 //! @brief A non-owning wrapper for cudaStream_t.
@@ -84,6 +88,22 @@ struct stream_ref : ::cuda::stream_ref
   _CCCL_NODISCARD _CUDAX_HOST_API timed_event record_timed_event(event::flags __flags = event::flags::none) const
   {
     return timed_event(*this, __flags);
+  }
+
+  //! TODO: document me
+  template <class _Action>
+  _CUDAX_HOST_API decltype(auto) push(_Action __action)
+  {
+    using __value_t = _CUDA_VSTD::remove_pointer_t<_CUDA_VSTD::decay_t<__action_result_t<_Action>>>;
+    // avoid returning a future of a future:
+    if constexpr (__is_cudax_future<__value_t>)
+    {
+      return _CUDA_VSTD::move(__action).__enqueue(*this);
+    }
+    else
+    {
+      return __future_access::__make_future(_CUDA_VSTD::move(__action), *this);
+    }
   }
 
   //! \brief Synchronizes the wrapped stream.

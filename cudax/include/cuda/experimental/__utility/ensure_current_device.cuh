@@ -78,7 +78,7 @@ struct [[maybe_unused]] __ensure_current_device
   //! @param stream Stream indicating the device to switch to
   //!
   //! @throws cuda_error if the device switch fails
-  explicit __ensure_current_device(stream_ref __stream)
+  explicit __ensure_current_device(cuda::stream_ref __stream)
   {
     auto __ctx = detail::driver::streamGetCtx(__stream.get());
     detail::driver::ctxPush(__ctx);
