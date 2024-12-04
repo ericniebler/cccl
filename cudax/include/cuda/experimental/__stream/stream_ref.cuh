@@ -23,8 +23,11 @@
 #include <cuda_runtime_api.h>
 
 #include <cuda/std/__cuda/api_wrapper.h>
+#include <cuda/std/__type_traits/decay.h>
+#include <cuda/std/__type_traits/remove_pointer.h>
 #include <cuda/stream_ref>
 
+#include <cuda/experimental/__detail/config.cuh>
 #include <cuda/experimental/__device/all_devices.cuh>
 #include <cuda/experimental/__device/logical_device.cuh>
 #include <cuda/experimental/__event/timed_event.cuh>
@@ -43,16 +46,22 @@ static const ::cudaStream_t __invalid_stream = reinterpret_cast<cudaStream_t>(~0
 //! @brief A non-owning wrapper for cudaStream_t.
 struct stream_ref : ::cuda::stream_ref
 {
-  using ::cuda::stream_ref::stream_ref;
-
   stream_ref() = delete;
+
+  _CUDAX_HOST_API constexpr stream_ref(value_type __stream_) noexcept
+      : ::cuda::stream_ref{__stream_}
+  {}
+
+  _CUDAX_HOST_API constexpr stream_ref(::cuda::stream_ref __stream) noexcept
+      : ::cuda::stream_ref(__stream)
+  {}
 
   //! @brief Create a new event and record it into this stream
   //!
   //! @return A new event that was recorded into this stream
   //!
   //! @throws cuda_error if event creation or record failed
-  _CCCL_NODISCARD event record_event(event::flags __flags = event::flags::none) const
+  _CCCL_NODISCARD _CUDAX_HOST_API event record_event(event::flags __flags = event::flags::none) const
   {
     return event(*this, __flags);
   }
@@ -67,14 +76,20 @@ struct stream_ref : ::cuda::stream_ref
     return timed_event(*this, __flags);
   }
 
-  using ::cuda::stream_ref::wait;
+  template <class _Action>
+  _CUDAX_HOST_API auto push(_Action __action);
+
+  _CUDAX_TRIVIAL_HOST_API void wait() const
+  {
+    this->::cuda::stream_ref::wait();
+  }
 
   //! @brief Make all future work submitted into this stream depend on completion of the specified event
   //!
   //! @param __ev Event that this stream should wait for
   //!
   //! @throws cuda_error if inserting the dependency fails
-  void wait(event_ref __ev) const
+  _CUDAX_HOST_API void wait(event_ref __ev) const
   {
     _CCCL_ASSERT(__ev.get() != nullptr, "cuda::experimental::stream_ref::wait invalid event passed");
     // Need to use driver API, cudaStreamWaitEvent would push dev 0 if stack was empty
@@ -87,19 +102,22 @@ struct stream_ref : ::cuda::stream_ref
   //! @param __other Stream that this stream should wait for
   //!
   //! @throws cuda_error if inserting the dependency fails
-  void wait(stream_ref __other) const
+  _CUDAX_HOST_API void wait(stream_ref __other) const
   {
     // TODO consider an optimization to not create an event every time and instead have one persistent event or one
     // per stream
     _CCCL_ASSERT(__stream != detail::__invalid_stream, "cuda::experimental::stream_ref::wait invalid stream passed");
-    event __tmp(__other);
-    wait(__tmp);
+    if (*this != __other)
+    {
+      event __tmp(__other);
+      wait(__tmp);
+    }
   }
 
   //! @brief Get the logical device under which this stream was created
   //! Compared to `device()` member function the returned logical_device will hold a green context for streams
   //! created under one.
-  logical_device logical_device() const
+  _CUDAX_HOST_API logical_device logical_device() const
   {
     CUcontext __stream_ctx;
     ::cuda::experimental::logical_device::kinds __ctx_kind = ::cuda::experimental::logical_device::kinds::device;
@@ -138,12 +156,32 @@ struct stream_ref : ::cuda::stream_ref
   //! returned
   //!
   //! @throws cuda_error if device check fails
-  device_ref device() const
+  _CUDAX_HOST_API device_ref device() const
   {
     return logical_device().get_underlying_device();
   }
 };
 
+} // namespace cuda::experimental
+
+#include <cuda/experimental/__async/future.cuh>
+
+namespace cuda::experimental
+{
+template <class _Action>
+_CUDAX_HOST_API auto stream_ref::push(_Action __action)
+{
+  using __value_t = cuda::std::remove_pointer_t<cuda::std::decay_t<__async::__action_result_t<_Action>>>;
+  // avoid returning a future of a future:
+  if constexpr (__async::__is_cudax_future<__value_t>)
+  {
+    return cuda::std::move(__action).__enqueue(*this);
+  }
+  else
+  {
+    return __async::__as_future(cuda::std::move(__action), *this);
+  }
+}
 } // namespace cuda::experimental
 
 #endif // _CUDAX__STREAM_STREAM_REF

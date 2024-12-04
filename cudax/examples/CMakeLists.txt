@@ -27,6 +27,10 @@ function(cudax_add_example target_name_var example_src cudax_target)
   )
   cudax_clone_target_properties(${example_target} ${cudax_target})
   target_include_directories(${example_target} PRIVATE "${CUB_SOURCE_DIR}/examples")
+  target_compile_definitions(${example_target} PRIVATE LIBCUDACXX_ENABLE_EXPERIMENTAL_MEMORY_RESOURCE)
+  target_compile_options(${example_target} PRIVATE
+    $<$<COMPILE_LANG_AND_ID:CUDA,NVIDIA>:-diag-suppress 20011>
+  )
 
   # Add to the active configuration's meta target
   add_dependencies(${config_meta_target} ${example_target})

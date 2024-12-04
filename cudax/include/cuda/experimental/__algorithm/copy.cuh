@@ -75,6 +75,43 @@ void copy_bytes(stream_ref __stream, _SrcTy&& __src, _DstTy&& __dst)
       detail::__launch_transform(__stream, _CUDA_VSTD::forward<_DstTy>(__dst)))));
 }
 
+template <typename _SrcTy, typename _DstTy>
+struct __copy_bytes_action
+{
+  __copy_bytes_action(_SrcTy&& __src, _DstTy&& __dst)
+      : __src_(static_cast<_SrcTy&&>(__src))
+      , __dst_(static_cast<_DstTy&&>(__dst))
+  {}
+
+  _DstTy __enqueue(stream_ref __stream) &&
+  {
+    cuda::experimental::copy_bytes(__stream, _CUDA_VSTD::forward<_SrcTy>(__src_), __dst_);
+    return _CUDA_VSTD::forward<_DstTy>(__dst_);
+  }
+
+private:
+  _SrcTy __src_;
+  _DstTy __dst_;
+};
+
+//! @brief Launches a bytewise memory copy from source to destination into the provided stream.
+//!
+//! Both source and destination needs to either be a `contiguous_range` or launch transform to one.
+//! They can also implicitly convert to `cuda::std::span`, but the type needs to contain `value_type` member alias.
+//! Both source and destination type is required to be trivially copyable.
+//!
+//! This call might be synchronous if either source or destination is pagable host memory.
+//! It will be synchronous if both destination and copy is located in host memory.
+//!
+//! @param __src Source to copy from
+//! @param __dst Destination to copy into
+_CCCL_TEMPLATE(typename _SrcTy, typename _DstTy)
+_CCCL_REQUIRES(__valid_1d_copy_fill_argument<_SrcTy> _CCCL_AND __valid_1d_copy_fill_argument<_DstTy>)
+auto copy_bytes(_SrcTy&& __src, _DstTy&& __dst)
+{
+  return __copy_bytes_action<_SrcTy, _DstTy>{_CUDA_VSTD::forward<_SrcTy>(__src), _CUDA_VSTD::forward<_DstTy>(__dst)};
+}
+
 template <typename _Extents, typename _OtherExtents>
 inline constexpr bool __copy_bytes_compatible_extents = false;
 

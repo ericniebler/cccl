@@ -31,6 +31,8 @@ namespace cuda::experimental
 {
 namespace detail
 {
+void __cudax_launch_transform();
+
 // Types should define overloads of __cudax_launch_transform that are find-able
 // by ADL in order to customize how cudax::launch handles that type.
 template <typename _Arg>
