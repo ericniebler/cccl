@@ -52,13 +52,12 @@ void __fill_bytes_impl(stream_ref __stream, _CUDA_VSTD::span<_DstTy, _DstSize> _
 //! @param __dst Destination memory to fill
 //! @param __value Value to fill into every byte in the destination
 _CCCL_TEMPLATE(typename _DstTy)
-_CCCL_REQUIRES(__valid_1d_copy_fill_argument<_DstTy>)
+_CCCL_REQUIRES(_CUDA_VRANGES::contiguous_range<relocatable_value_of_t<_DstTy>>)
 void fill_bytes(stream_ref __stream, _DstTy&& __dst, uint8_t __value)
 {
-  __fill_bytes_impl(
-    __stream,
-    _CUDA_VSTD::span(__kernel_transform(__launch_transform(__stream, _CUDA_VSTD::forward<_DstTy>(__dst)))),
-    __value);
+  __fill_bytes_impl(__stream,
+                    _CUDA_VSTD::span(relocatable_value(async_transform(__stream, _CUDA_VSTD::forward<_DstTy>(__dst)))),
+                    __value);
 }
 
 //! @brief Launches an operation to bytewise fill the memory into the provided stream.
@@ -77,8 +76,8 @@ _CCCL_TEMPLATE(typename _DstTy)
 _CCCL_REQUIRES(__valid_nd_copy_fill_argument<_DstTy>)
 void fill_bytes(stream_ref __stream, _DstTy&& __dst, uint8_t __value)
 {
-  decltype(auto) __dst_transformed = __launch_transform(__stream, _CUDA_VSTD::forward<_DstTy>(__dst));
-  decltype(auto) __dst_as_arg      = __kernel_transform(__dst_transformed);
+  decltype(auto) __dst_transformed = async_transform(__stream, _CUDA_VSTD::forward<_DstTy>(__dst));
+  decltype(auto) __dst_as_arg      = relocatable_value(__dst_transformed);
   auto __dst_mdspan                = __as_mdspan_t<decltype(__dst_as_arg)>(__dst_as_arg);
 
   __fill_bytes_impl(

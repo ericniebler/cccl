@@ -21,19 +21,19 @@
 #  pragma system_header
 #endif // no system header
 
+#include <cuda/std/__concepts/concept_macros.h>
+#include <cuda/std/__concepts/convertible_to.h>
 #include <cuda/std/__ranges/concepts.h>
-#include <cuda/std/__type_traits/is_convertible.h>
+#include <cuda/std/__type_traits/is_object.h>
 #include <cuda/std/mdspan>
 #include <cuda/std/span>
 
-#include <cuda/experimental/__launch/launch_transform.cuh>
+#include <cuda/experimental/__async/async_transform.cuh>
+#include <cuda/experimental/__async/tasks.cuh>
+#include <cuda/experimental/__stream/stream_ref.cuh>
 
 namespace cuda::experimental
 {
-
-template <typename _Tp>
-_CCCL_CONCEPT __valid_1d_copy_fill_argument = _CUDA_VRANGES::contiguous_range<kernel_arg_t<_Tp>>;
-
 template <typename _Tp, typename _Decayed = _CUDA_VSTD::decay_t<_Tp>>
 using __as_mdspan_t =
   _CUDA_VSTD::mdspan<typename _Decayed::value_type,
@@ -41,17 +41,34 @@ using __as_mdspan_t =
                      typename _Decayed::layout_type,
                      typename _Decayed::accessor_type>;
 
-template <typename _Tp, typename = int>
-inline constexpr bool __convertible_to_mdspan = false;
+// clang-format off
+template <typename _Tp>
+_CCCL_CONCEPT __convertible_to_mdspan =
+  _CCCL_REQUIRES_EXPR((_Tp))
+  (
+    requires(_CUDA_VSTD::convertible_to<_Tp, __as_mdspan_t<_Tp>>)
+  );
 
 template <typename _Tp>
-inline constexpr bool
-  __convertible_to_mdspan<_Tp, _CUDA_VSTD::enable_if_t<_CUDA_VSTD::is_convertible_v<_Tp, __as_mdspan_t<_Tp>>, int>> =
-    true;
+_CCCL_CONCEPT __valid_nd_copy_fill_argument =
+  _CCCL_REQUIRES_EXPR((_Tp))
+  (
+    requires(__convertible_to_mdspan<__relocatable_value_result_t<__async_transform_result_t<_Tp>>>)
+  );
+// clang-format on
 
-template <typename _Tp>
-inline constexpr bool __valid_nd_copy_fill_argument =
-  __convertible_to_mdspan<__kernel_transform_result_t<__launch_transform_result_t<_Tp>>>;
+struct __transform_call_fn
+{
+  template <typename _Fn, typename... _Args>
+  _CUDAX_HOST_API decltype(auto) operator()(_Fn&& __fn, stream_ref __stream, _Args&&... __args) const
+  {
+    return _CUDA_VSTD::forward<_Fn>(__fn)(
+      relocatable_value(async_transform(__stream, _CUDA_VSTD::forward<_Args>(__args)))...);
+  }
+};
+
+inline constexpr __transform_call_fn __transform_call{};
 
 } // namespace cuda::experimental
+
 #endif //__CUDAX_ALGORITHM_COMMON

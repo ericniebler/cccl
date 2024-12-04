@@ -88,7 +88,7 @@ struct weird_buffer
     int* data;
     std::size_t size;
 
-    AsKernelArg kernel_transform()
+    AsKernelArg relocatable_value()
     {
       return *this;
     };
@@ -105,7 +105,7 @@ struct weird_buffer
     }
   };
 
-  _CCCL_NODISCARD_FRIEND transform_result __cudax_launch_transform(cuda::stream_ref, const weird_buffer& self) noexcept
+  _CCCL_NODISCARD_FRIEND transform_result cuda_async_transform(cuda::stream_ref, const weird_buffer& self) noexcept
   {
     return {self.data, self.size};
   }

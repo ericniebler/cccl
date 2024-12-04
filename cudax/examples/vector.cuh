@@ -90,7 +90,7 @@ private:
   }
 
   template <detail::__param_kind _Kind>
-  class __action //: private detail::__immovable
+  class __action //: private __immovable
   {
     using __cv_vector = ::cuda::std::__maybe_const<_Kind == detail::__param_kind::_in, vector>;
 
@@ -109,7 +109,7 @@ private:
       __v_.sync_device_to_host(__str_, _Kind);
     }
 
-    ::cuda::std::span<_Ty> kernel_transform() const
+    ::cuda::std::span<_Ty> relocatable_value() const
     {
       return {__v_.__d_.data().get(), __v_.__d_.size()};
     }
@@ -120,20 +120,20 @@ private:
   };
 
   _CCCL_NODISCARD_FRIEND __action<detail::__param_kind::_inout>
-  __cudax_launch_transform(::cuda::stream_ref __str, vector& __v) noexcept
+  cuda_async_transform(::cuda::stream_ref __str, vector& __v) noexcept
   {
     return __action<detail::__param_kind::_inout>{__str, __v};
   }
 
   _CCCL_NODISCARD_FRIEND __action<detail::__param_kind::_in>
-  __cudax_launch_transform(::cuda::stream_ref __str, const vector& __v) noexcept
+  cuda_async_transform(::cuda::stream_ref __str, const vector& __v) noexcept
   {
     return __action<detail::__param_kind::_in>{__str, __v};
   }
 
   template <detail::__param_kind _Kind>
   _CCCL_NODISCARD_FRIEND __action<_Kind>
-  __cudax_launch_transform(::cuda::stream_ref __str, detail::__box<vector, _Kind> __b) noexcept
+  cuda_async_transform(::cuda::stream_ref __str, detail::__box<vector, _Kind> __b) noexcept
   {
     return __action<_Kind>{__str, __b.__val};
   }

@@ -21,6 +21,7 @@
 #  pragma system_header
 #endif // no system header
 
+#include <cuda/std/__tuple_dir/ignore.h>
 #include <cuda/std/__type_traits/is_const.h>
 
 #include <cuda/experimental/__utility/basic_any/basic_any_fwd.cuh>
@@ -54,7 +55,7 @@ struct overrides_for<__iset<_Interfaces...>>
 template <>
 struct overrides_for<iunknown>
 {
-  using __vtable _CCCL_NODEBUG_ALIAS = detail::__ignore; // no vtable, rtti is added explicitly in __vtable_tuple
+  using __vtable _CCCL_NODEBUG_ALIAS = _CUDA_VSTD::__ignore_t; // no vtable, rtti is added explicitly in __vtable_tuple
   using __vptr_t _CCCL_NODEBUG_ALIAS = __rtti const*;
 };
 

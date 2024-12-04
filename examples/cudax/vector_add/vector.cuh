@@ -90,26 +90,26 @@ private:
   }
 
   template <detail::__param_kind _Kind>
-  class __action //: private detail::__immovable
+  class __transform //: private __immovable
   {
     using __cv_vector = ::cuda::std::__maybe_const<_Kind == detail::__param_kind::_in, vector>;
 
   public:
-    explicit __action(::cuda::stream_ref __str, __cv_vector& __v) noexcept
+    explicit __transform(::cuda::stream_ref __str, __cv_vector& __v) noexcept
         : __str_(__str)
         , __v_(__v)
     {
       __v_.sync_host_to_device(__str_, _Kind);
     }
 
-    __action(__action&&) = delete;
+    __transform(__transform&&) = delete;
 
-    ~__action()
+    ~__transform()
     {
       __v_.sync_device_to_host(__str_, _Kind);
     }
 
-    ::cuda::std::span<_Ty> kernel_transform()
+    ::cuda::std::span<_Ty> relocatable_value()
     {
       return {__v_.__d_.data().get(), __v_.__d_.size()};
     }
@@ -119,23 +119,23 @@ private:
     __cv_vector& __v_;
   };
 
-  _CCCL_NODISCARD_FRIEND __action<detail::__param_kind::_inout>
-  __cudax_launch_transform(::cuda::stream_ref __str, vector& __v) noexcept
+  _CCCL_NODISCARD_FRIEND __transform<detail::__param_kind::_inout>
+  cuda_async_transform(::cuda::stream_ref __str, vector& __v) noexcept
   {
-    return __action<detail::__param_kind::_inout>{__str, __v};
+    return __transform<detail::__param_kind::_inout>{__str, __v};
   }
 
-  _CCCL_NODISCARD_FRIEND __action<detail::__param_kind::_in>
-  __cudax_launch_transform(::cuda::stream_ref __str, const vector& __v) noexcept
+  _CCCL_NODISCARD_FRIEND __transform<detail::__param_kind::_in>
+  cuda_async_transform(::cuda::stream_ref __str, const vector& __v) noexcept
   {
-    return __action<detail::__param_kind::_in>{__str, __v};
+    return __transform<detail::__param_kind::_in>{__str, __v};
   }
 
   template <detail::__param_kind _Kind>
-  _CCCL_NODISCARD_FRIEND __action<_Kind>
-  __cudax_launch_transform(::cuda::stream_ref __str, detail::__box<vector, _Kind> __b) noexcept
+  _CCCL_NODISCARD_FRIEND __transform<_Kind>
+  cuda_async_transform(::cuda::stream_ref __str, detail::__box<vector, _Kind> __b) noexcept
   {
-    return __action<_Kind>{__str, __b.__val};
+    return __transform<_Kind>{__str, __b.__val};
   }
 
   mutable host_vector<_Ty> __h_;

@@ -27,6 +27,7 @@
 #include <cuda/std/__cuda/api_wrapper.h>
 #include <cuda/std/chrono>
 #include <cuda/std/cstddef>
+#include <cuda/stream_ref>
 
 #include <cuda/experimental/__detail/utility.cuh>
 #include <cuda/experimental/__event/event.cuh>
@@ -41,7 +42,7 @@ public:
   //!        and record the event on the specified stream.
   //!
   //! @throws cuda_error if the event creation fails.
-  explicit timed_event(stream_ref __stream, flags __flags = flags::none)
+  explicit timed_event(cuda::stream_ref __stream, flags __flags = flags::none)
       : event(__stream, static_cast<unsigned int>(__flags))
   {
     record(__stream);

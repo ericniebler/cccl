@@ -51,7 +51,7 @@ struct __basic_any_access
   _CUDAX_TRIVIAL_HOST_API static auto __cast_to(_SrcCvAny&& __from, basic_any<_DstInterface>& __to) noexcept(
     noexcept(__to.__convert_from(static_cast<_SrcCvAny&&>(__from)))) -> void
   {
-    static_assert(detail::__is_specialization_of<_CUDA_VSTD::remove_cvref_t<_SrcCvAny>, basic_any>);
+    static_assert(__is_specialization_of<_CUDA_VSTD::remove_cvref_t<_SrcCvAny>, basic_any>);
     __to.__convert_from(static_cast<_SrcCvAny&&>(__from));
   }
 
@@ -60,7 +60,7 @@ struct __basic_any_access
   _CUDAX_TRIVIAL_HOST_API static auto
   __cast_to(_SrcCvAny* __from, basic_any<_DstInterface>& __to) noexcept(noexcept(__to.__convert_from(__from))) -> void
   {
-    static_assert(detail::__is_specialization_of<_CUDA_VSTD::remove_const_t<_SrcCvAny>, basic_any>);
+    static_assert(__is_specialization_of<_CUDA_VSTD::remove_const_t<_SrcCvAny>, basic_any>);
     __to.__convert_from(__from);
   }
 

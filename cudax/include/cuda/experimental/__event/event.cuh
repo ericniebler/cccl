@@ -54,7 +54,7 @@ public:
   //!        the event in the specified stream.
   //!
   //! @throws cuda_error if the event creation fails.
-  explicit event(stream_ref __stream, flags __flags = flags::none)
+  explicit event(cuda::stream_ref __stream, flags __flags = flags::none)
       : event(__stream, static_cast<unsigned int>(__flags) | cudaEventDisableTiming)
   {
     record(__stream);
@@ -147,7 +147,7 @@ private:
       : event_ref(__evnt)
   {}
 
-  explicit event(stream_ref __stream, unsigned int __flags)
+  explicit event(cuda::stream_ref __stream, unsigned int __flags)
       : event_ref(::cudaEvent_t{})
   {
     [[maybe_unused]] __ensure_current_device __dev_setter(__stream);

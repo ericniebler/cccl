@@ -27,6 +27,7 @@
 #include <cuda/std/__type_traits/is_callable.h>
 #include <cuda/std/__type_traits/is_class.h>
 #include <cuda/std/__type_traits/is_const.h>
+#include <cuda/std/__type_traits/is_valid_expansion.h>
 #include <cuda/std/__type_traits/remove_const.h>
 #include <cuda/std/__type_traits/type_set.h>
 
@@ -293,7 +294,7 @@ struct __make_interface_fn
 {
   static_assert(_CUDA_VSTD::is_class_v<_Super>, "expected a class type");
   template <class... _Interfaces>
-  using __call _CCCL_NODEBUG_ALIAS = detail::__inherit<__rebind_interface<_Interfaces, _Super>...>;
+  using __call _CCCL_NODEBUG_ALIAS = __inherit<__rebind_interface<_Interfaces, _Super>...>;
 };
 
 // Given an interface `_I<>`, let `_Bs<>...` be the list of types consisting

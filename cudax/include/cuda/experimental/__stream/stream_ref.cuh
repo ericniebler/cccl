@@ -12,6 +12,7 @@
 #define _CUDAX__STREAM_STREAM_REF
 
 #include <cuda/std/detail/__config>
+
 #if defined(_CCCL_IMPLICIT_SYSTEM_HEADER_GCC)
 #  pragma GCC system_header
 #elif defined(_CCCL_IMPLICIT_SYSTEM_HEADER_CLANG)
@@ -38,7 +39,7 @@ namespace detail
 {
 // 0 is a valid stream in CUDA, so we need some other invalid stream representation
 // Can't make it constexpr, because cudaStream_t is a pointer type
-static const ::cudaStream_t __invalid_stream = reinterpret_cast<cudaStream_t>(~0ULL);
+const ::cudaStream_t __invalid_stream = reinterpret_cast<cudaStream_t>(~0ULL);
 } // namespace detail
 
 //! @brief A non-owning wrapper for cudaStream_t.

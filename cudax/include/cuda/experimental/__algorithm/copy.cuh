@@ -8,8 +8,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef __CUDAX_ALGORITHM_COPY
-#define __CUDAX_ALGORITHM_COPY
+#ifndef __CUDAX_ALGORITHM_COPY_BYTES
+#define __CUDAX_ALGORITHM_COPY_BYTES
 
 #include <cuda/__cccl_config>
 
@@ -21,9 +21,16 @@
 #  pragma system_header
 #endif // no system header
 
+#include <cuda_runtime_api.h>
+
 #include <cuda/std/__concepts/concept_macros.h>
+#include <cuda/std/__ranges/concepts.h>
+#include <cuda/std/span>
+#include <cuda/std/type_traits>
+#include <cuda/std/utility>
 
 #include <cuda/experimental/__algorithm/common.cuh>
+#include <cuda/experimental/__async/tasks.cuh>
 #include <cuda/experimental/__stream/stream_ref.cuh>
 
 namespace cuda::experimental
@@ -64,13 +71,76 @@ void __copy_bytes_impl(stream_ref __stream, _CUDA_VSTD::span<_SrcTy> __src, _CUD
 //! @param __src Source to copy from
 //! @param __dst Destination to copy into
 _CCCL_TEMPLATE(typename _SrcTy, typename _DstTy)
-_CCCL_REQUIRES(__valid_1d_copy_fill_argument<_SrcTy> _CCCL_AND __valid_1d_copy_fill_argument<_DstTy>)
+_CCCL_REQUIRES(_CUDA_VRANGES::contiguous_range<relocatable_value_of_t<_SrcTy>> _CCCL_AND //
+                 _CUDA_VRANGES::contiguous_range<relocatable_value_of_t<_DstTy>>)
 void copy_bytes(stream_ref __stream, _SrcTy&& __src, _DstTy&& __dst)
 {
-  __copy_bytes_impl(
+  __transform_call(
+    [__stream](auto&&... __args) {
+      __copy_bytes_impl(__stream, _CUDA_VSTD::span(_CUDA_VSTD::forward<decltype(__args)>(__args))...);
+    },
     __stream,
-    _CUDA_VSTD::span(__kernel_transform(__launch_transform(__stream, _CUDA_VSTD::forward<_SrcTy>(__src)))),
-    _CUDA_VSTD::span(__kernel_transform(__launch_transform(__stream, _CUDA_VSTD::forward<_DstTy>(__dst)))));
+    _CUDA_VSTD::forward<_SrcTy>(__src),
+    _CUDA_VSTD::forward<_DstTy>(__dst));
+}
+
+template <typename _SrcTy, typename _DstTy>
+struct __copy_bytes_transform
+{
+private:
+  _SrcTy __src_;
+  _DstTy __dst_;
+
+  _CUDAX_HOST_API static decltype(auto) __enqueue_(stream_ref __stream, _SrcTy&& __src, _DstTy&& __dst)
+  {
+    // Enqueue src and dst if they are actions and send the result to
+    // copy_bytes. Return the result of (possibly) enqueueing the
+    // destination buffer.
+    return async_call(
+      [__stream](auto&& __src, auto&& __dst) -> decltype(auto) {
+        __cudax::copy_bytes(__stream, __src, __dst);
+        return __decay_xvalue(_CUDA_VSTD::forward<decltype(__dst)>(__dst));
+      },
+      __stream,
+      _CUDA_VSTD::move(__src),
+      _CUDA_VSTD::move(__dst));
+  }
+
+  using value_type = decltype(__decay_xvalue(__enqueue_(declval<stream_ref>(), declval<_SrcTy>(), declval<_DstTy>())));
+
+public:
+  __copy_bytes_transform(_SrcTy __src, _DstTy __dst)
+      : __src_(_CUDA_VSTD::move(__src))
+      , __dst_(_CUDA_VSTD::move(__dst))
+  {}
+
+  _CUDAX_TRIVIAL_HOST_API value_type enqueue(stream_ref __stream) &&
+  {
+    return __enqueue_(__stream, _CUDA_VSTD::move(__src_), _CUDA_VSTD::move(__dst_));
+  }
+};
+
+//! @brief Creates a deferred bytewise memory copy action from source to
+//! destination into the provided stream.
+//!
+//! Both source and destination needs to either be a `contiguous_range` or
+//! launch transform to one. They can also implicitly convert to
+//! `cuda::std::span`, but the type needs to contain `value_type` member alias.
+//! Both source and destination type is required to be trivially copyable.
+//!
+//! This call might be synchronous if either source or destination is pagable
+//! host memory. It will be synchronous if both destination and copy is located
+//! in host memory.
+//!
+//! @param __src Source to copy from
+//! @param __dst Destination to copy into
+_CCCL_TEMPLATE(typename _SrcTy, typename _DstTy)
+_CCCL_REQUIRES(async_param<_SrcTy> _CCCL_AND async_param<_DstTy> _CCCL_AND
+                 _CUDA_VRANGES::contiguous_range<async_result_of_t<_SrcTy>> _CCCL_AND
+                   _CUDA_VRANGES::contiguous_range<async_result_of_t<_SrcTy>>)
+auto copy_bytes(_SrcTy&& __src, _DstTy&& __dst)
+{
+  return __copy_bytes_transform{_CUDA_VSTD::forward<_SrcTy>(__src), _CUDA_VSTD::forward<_DstTy>(__dst)};
 }
 
 template <typename _SrcExtents, typename _DstExtents>
@@ -80,7 +150,7 @@ _CCCL_NODISCARD bool __copy_bytes_runtime_extents_match(_SrcExtents __src_exts, 
   {
     if (__src_exts.extent(__i)
         != static_cast<typename _SrcExtents::index_type>(
-          __dst_exts.extent((static_cast<typename _DstExtents::rank_type>(__i)))))
+          __dst_exts.extent(static_cast<typename _DstExtents::rank_type>(__i))))
     {
       return false;
     }
@@ -132,13 +202,13 @@ _CCCL_TEMPLATE(typename _SrcTy, typename _DstTy)
 _CCCL_REQUIRES(__valid_nd_copy_fill_argument<_SrcTy> _CCCL_AND __valid_nd_copy_fill_argument<_DstTy>)
 void copy_bytes(stream_ref __stream, _SrcTy&& __src, _DstTy&& __dst)
 {
-  decltype(auto) __src_transformed = __launch_transform(__stream, _CUDA_VSTD::forward<_SrcTy>(__src));
-  decltype(auto) __dst_transformed = __launch_transform(__stream, _CUDA_VSTD::forward<_DstTy>(__dst));
-  decltype(auto) __src_as_arg      = __kernel_transform(__src_transformed);
-  decltype(auto) __dst_as_arg      = __kernel_transform(__dst_transformed);
+  decltype(auto) __src_transformed = async_transform(__stream, _CUDA_VSTD::forward<_SrcTy>(__src));
+  decltype(auto) __dst_transformed = async_transform(__stream, _CUDA_VSTD::forward<_DstTy>(__dst));
+  decltype(auto) __src_as_arg      = relocatable_value(__src_transformed);
+  decltype(auto) __dst_as_arg      = relocatable_value(__dst_transformed);
   __nd_copy_bytes_impl(
     __stream, __as_mdspan_t<decltype(__src_as_arg)>(__src_as_arg), __as_mdspan_t<decltype(__dst_as_arg)>(__dst_as_arg));
 }
 
 } // namespace cuda::experimental
-#endif // __CUDAX_ALGORITHM_COPY
+#endif // __CUDAX_ALGORITHM_COPY_BYTES

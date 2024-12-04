@@ -52,8 +52,7 @@ struct __iset : __iset_<_Interfaces...>::template __interface_<>
 // flatten any nested sets
 template <class _Interface>
 using __iset_flatten _CCCL_NODEBUG_ALIAS = _CUDA_VSTD::__as_type_list<
-  _CUDA_VSTD::
-    conditional_t<detail::__is_specialization_of<_Interface, __iset>, _Interface, _CUDA_VSTD::__type_list<_Interface>>>;
+  _CUDA_VSTD::conditional_t<__is_specialization_of<_Interface, __iset>, _Interface, _CUDA_VSTD::__type_list<_Interface>>>;
 
 // flatten all sets into one, remove duplicates, and sort the elements.
 // TODO: sort!

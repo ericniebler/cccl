@@ -117,14 +117,14 @@ struct launch_transform_to_int_convertible
     }
 
     // This is the value that will be passed to the kernel
-    int kernel_transform() const
+    int relocatable_value() const
     {
       return value_;
     }
   };
 
   _CCCL_NODISCARD_FRIEND int_convertible
-  __cudax_launch_transform(::cuda::stream_ref stream, launch_transform_to_int_convertible self) noexcept
+  cuda_async_transform(::cuda::stream_ref stream, launch_transform_to_int_convertible self) noexcept
   {
     return int_convertible(stream.get(), self.value_);
   }

@@ -22,6 +22,7 @@
 #endif // no system header
 
 #include <cuda/std/__algorithm/max.h>
+#include <cuda/std/__tuple_dir/ignore.h>
 #include <cuda/std/__type_traits/is_nothrow_move_constructible.h>
 #include <cuda/std/__utility/swap.h>
 
@@ -62,7 +63,8 @@ _CCCL_NODISCARD _CUDAX_TRIVIAL_HOST_API auto __ptr_eq(_Tp* __lhs, _Up* __rhs) no
   return static_cast<_Vp>(__lhs) == static_cast<_Vp>(__rhs);
 }
 
-_CCCL_NODISCARD _CUDAX_TRIVIAL_HOST_API constexpr auto __ptr_eq(detail::__ignore, detail::__ignore) noexcept -> bool
+_CCCL_NODISCARD _CUDAX_TRIVIAL_HOST_API constexpr auto __ptr_eq(_CUDA_VSTD::__ignore_t, _CUDA_VSTD::__ignore_t) noexcept
+  -> bool
 {
   return false;
 }

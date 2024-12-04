@@ -10,13 +10,31 @@
 
 #ifndef _CUDAX__LAUNCH_LAUNCH
 #define _CUDAX__LAUNCH_LAUNCH
+
+#include <cuda/std/detail/__config>
+
+#if defined(_CCCL_IMPLICIT_SYSTEM_HEADER_GCC)
+#  pragma GCC system_header
+#elif defined(_CCCL_IMPLICIT_SYSTEM_HEADER_CLANG)
+#  pragma clang system_header
+#elif defined(_CCCL_IMPLICIT_SYSTEM_HEADER_MSVC)
+#  pragma system_header
+#endif // no system header
+
 #include <cuda_runtime.h>
 
 #include <cuda/std/__exception/cuda_error.h>
+#include <cuda/std/__type_traits/decay.h>
+#include <cuda/std/tuple>
+#include <cuda/std/utility>
 #include <cuda/stream_ref>
 
+#include <cuda/experimental/__algorithm/common.cuh>
+#include <cuda/experimental/__async/async_fwd.cuh>
+#include <cuda/experimental/__async/async_transform.cuh>
+#include <cuda/experimental/__async/get_unsynchronized.cuh>
+#include <cuda/experimental/__async/sender/tuple.cuh>
 #include <cuda/experimental/__launch/configuration.cuh>
-#include <cuda/experimental/__launch/launch_transform.cuh>
 #include <cuda/experimental/__utility/ensure_current_device.cuh>
 
 #if _CCCL_STD_VER >= 2017
@@ -25,13 +43,13 @@ namespace cuda::experimental
 
 namespace detail
 {
-template <typename Config, typename Kernel, class... Args>
+template <typename Config, typename Kernel, typename... Args>
 __global__ void kernel_launcher(const Config conf, Kernel kernel_fn, Args... args)
 {
   kernel_fn(conf, args...);
 }
 
-template <typename Kernel, class... Args>
+template <typename Kernel, typename... Args>
 __global__ void kernel_launcher_no_config(Kernel kernel_fn, Args... args)
 {
   kernel_fn(args...);
@@ -126,23 +144,28 @@ void launch(
   __ensure_current_device __dev_setter(stream);
   cudaError_t status;
   auto combined = conf.combine_with_default(kernel);
-  if constexpr (::cuda::std::is_invocable_v<Kernel, kernel_config<Dimensions, Config...>, kernel_arg_t<Args>...>)
+  if constexpr (::cuda::std::
+                  is_invocable_v<Kernel, kernel_config<Dimensions, Config...>, relocatable_value_of_t<Args>...>)
   {
-    auto launcher = detail::kernel_launcher<decltype(combined), Kernel, kernel_arg_t<Args>...>;
+    auto launcher = detail::kernel_launcher<decltype(combined), Kernel, relocatable_value_of_t<Args>...>;
     status        = detail::launch_impl(
-      stream,
+      stream, //
       combined,
       launcher,
       combined,
       kernel,
-      __kernel_transform(__launch_transform(stream, std::forward<Args>(args)))...);
+      relocatable_value(async_transform(stream, std::forward<Args>(args)))...);
   }
   else
   {
-    static_assert(::cuda::std::is_invocable_v<Kernel, kernel_arg_t<Args>...>);
-    auto launcher = detail::kernel_launcher_no_config<Kernel, kernel_arg_t<Args>...>;
+    static_assert(::cuda::std::is_invocable_v<Kernel, relocatable_value_of_t<Args>...>);
+    auto launcher = detail::kernel_launcher_no_config<Kernel, relocatable_value_of_t<Args>...>;
     status        = detail::launch_impl(
-      stream, combined, launcher, kernel, __kernel_transform(__launch_transform(stream, std::forward<Args>(args)))...);
+      stream, //
+      combined,
+      launcher,
+      kernel,
+      relocatable_value(async_transform(stream, std::forward<Args>(args)))...);
   }
   if (status != cudaSuccess)
   {
@@ -202,7 +225,7 @@ void launch(::cuda::stream_ref stream,
     conf,
     kernel,
     conf,
-    __kernel_transform(__launch_transform(stream, std::forward<ActArgs>(args)))...);
+    relocatable_value(async_transform(stream, std::forward<ActArgs>(args)))...);
 
   if (status != cudaSuccess)
   {
@@ -260,7 +283,7 @@ void launch(::cuda::stream_ref stream,
     stream, //
     conf,
     kernel,
-    __kernel_transform(__launch_transform(stream, std::forward<ActArgs>(args)))...);
+    relocatable_value(async_transform(stream, std::forward<ActArgs>(args)))...);
 
   if (status != cudaSuccess)
   {
@@ -268,6 +291,57 @@ void launch(::cuda::stream_ref stream,
   }
 }
 
+template <typename _Config, typename _Kernel, typename... _Args>
+struct __launch_action;
+
+template <typename _Kernel, typename... _Args, typename... Config, typename Dimensions>
+auto __launch_async(const kernel_config<Dimensions, Config...>& __dims, _Kernel __kernel_fn, _Args... __args)
+{
+  using _LaunchAction = __launch_action<kernel_config<Dimensions, Config...>, _Kernel, _Args...>;
+  return _LaunchAction{__dims, __kernel_fn, _CUDA_VSTD::move(__args)...};
+}
+
+template <typename... _Config, typename _Dimensions, typename _Kernel, typename... _Args>
+struct __launch_action<kernel_config<_Dimensions, _Config...>, _Kernel, _Args...>
+{
+  // By using __async::__tuple as the enqueue return type, we opt-in
+  // for stream.insert to return a tuple of futures instead of a future
+  // of a tuple.
+  using __value_t = __async::__tuple<__wait_result_t<_Args>...>;
+
+  auto enqueue(cuda::stream_ref __stream)
+  {
+    auto __fn = [__stream, this](_Args&... __args) {
+      cuda::experimental::launch(__stream, __config_, __kernel_fn_, __args...);
+      return __value_t{{get_unsynchronized(_CUDA_VSTD::move(__args))}...};
+    };
+    return __args_.__apply(__fn, __args_);
+  }
+
+private:
+  using __config_t = kernel_config<_Dimensions, _Config...>;
+
+  friend auto __launch_async<>(const __config_t&, _Kernel, _Args...);
+
+  explicit __launch_action(__config_t __config, _Kernel __kernel_fn, _Args... __args)
+      : __config_(_CUDA_VSTD::move(__config))
+      , __kernel_fn_(_CUDA_VSTD::move(__kernel_fn))
+      , __args_{{_CUDA_VSTD::move(__args)}...}
+  {}
+
+  __config_t __config_;
+  _Kernel __kernel_fn_;
+  __async::__tuple<_Args...> __args_;
+};
+
+_CCCL_TEMPLATE(typename _Kernel, typename... _Args, typename... Config, typename Dimensions)
+_CCCL_REQUIRES((async_param<_Args> && ...))
+auto launch(const kernel_config<Dimensions, Config...>& __dims, _Kernel __kernel_fn, _Args&&... __args)
+{
+  return __launch_async(__dims, __kernel_fn, _CUDA_VSTD::forward<_Args>(__args)...);
+}
+
 } // namespace cuda::experimental
+
 #endif // _CCCL_STD_VER >= 2017
 #endif // _CUDAX__LAUNCH_LAUNCH

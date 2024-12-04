@@ -70,7 +70,7 @@ _CCCL_NORETURN _CUDAX_HOST_API inline void __throw_bad_any_cast()
 #endif // _CCCL_NO_EXCEPTIONS
 }
 
-struct __rtti_base : detail::__immovable
+struct __rtti_base : __immovable
 {
   _CUDAX_HOST_API constexpr __rtti_base(
     __vtable_kind __kind, uint16_t __nbr_interfaces, _CUDA_VSTD::__type_info_ref __self) noexcept
