@@ -123,7 +123,7 @@ struct _CCCL_TYPE_VISIBILITY_DEFAULT env<_Env0, _Env1>
     {
       return (__env0_);
     }
-    else if constexpr (__queryable<_Env1, _Query>)
+    else
     {
       return (__env1_);
     }

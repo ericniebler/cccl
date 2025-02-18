@@ -68,6 +68,12 @@ using __call_result_t = decltype(__declval<_Fn>()(__declval<_As>()...));
 template <class _Fn, class... _As>
 inline constexpr bool __callable = __type_valid_v<__call_result_t, _Fn, _As...>;
 
+template <class _Ty>
+using __decay_copyable_ = decltype(__decay_t<_Ty>(__declval<_Ty>()));
+
+template <class... _As>
+inline constexpr bool __decay_copyable = (__type_valid_v<__decay_copyable_, _As> && ...);
+
 #if defined(__CUDA_ARCH__)
 template <class _Fn, class... _As>
 inline constexpr bool __nothrow_callable = true;

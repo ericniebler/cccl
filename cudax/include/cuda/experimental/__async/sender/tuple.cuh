@@ -99,6 +99,18 @@ using __tuple = __tupl<_CUDA_VSTD::make_index_sequence<sizeof...(_Ts)>, _Ts...>;
 
 template <class... _Ts>
 using __decayed_tuple = __tuple<__decay_t<_Ts>...>;
+
+// A very simple pair type
+template <class _First, class _Second>
+struct __pair
+{
+  _First first;
+  _Second second;
+};
+
+template <class _First, class _Second>
+__pair(_First, _Second) -> __pair<_First, _Second>;
+
 } // namespace cuda::experimental::__async
 
 #include <cuda/experimental/__async/sender/epilogue.cuh>

@@ -101,30 +101,6 @@ private:
   using _UponTag = decltype(__detail::__upon_tag<_Disposition>());
   using _SetTag  = decltype(__detail::__set_tag<_Disposition>());
 
-  template <class _Fn, class... _Ts>
-  using __error_not_callable = //
-    _ERROR< //
-      _WHERE(_IN_ALGORITHM, _UponTag),
-      _WHAT(_FUNCTION_IS_NOT_CALLABLE),
-      _WITH_FUNCTION(_Fn),
-      _WITH_ARGUMENTS(_Ts...)>;
-
-  template <class _Fn>
-  struct __transform_completion
-  {
-    template <class... _Ts>
-    using __call =
-      _CUDA_VSTD::__type_call<__type_try_quote<__upon::__completion, __error_not_callable<_Fn, _Ts...>>, _Fn, _Ts...>;
-  };
-
-  template <class _CvSndr, class _Fn, class _Rcvr>
-  using __completions =
-    __gather_completion_signatures<completion_signatures_of_t<_CvSndr, _Rcvr>,
-                                   _SetTag,
-                                   __transform_completion<_Fn>::template __call,
-                                   __default_completions,
-                                   __type_try_quote<__concat_completion_signatures>::__call>;
-
   template <class _Rcvr, class _CvSndr, class _Fn>
   struct _CCCL_TYPE_VISIBILITY_DEFAULT __opstate_t
   {
@@ -134,7 +110,6 @@ private:
     }
 
     using operation_state_concept = operation_state_t;
-    using completion_signatures   = __completions<_CvSndr, _Fn, __opstate_t*>;
 
     _Rcvr __rcvr_;
     _Fn __fn_;
@@ -174,10 +149,11 @@ private:
           ({ //
             __set<true>(static_cast<_Ts&&>(__ts)...); //
           }), //
-          _CUDAX_CATCH(...)( //
-            { //
-              __async::set_error(static_cast<_Rcvr&&>(__rcvr_), ::std::current_exception());
-            }))
+          _CUDAX_CATCH(...) //
+          ({ //
+            __async::set_error(static_cast<_Rcvr&&>(__rcvr_), ::std::current_exception());
+          }) //
+        )
       }
     }
 
@@ -212,6 +188,26 @@ private:
     }
   };
 
+  template <class _Fn>
+  struct __transform_args_fn
+  {
+    template <class... _Ts>
+    _CUDAX_API constexpr auto operator()() const
+    {
+      if constexpr (_CUDA_VSTD::__is_callable_v<_Fn, _Ts...>)
+      {
+        return __upon::__completion<_Fn, _Ts...>();
+      }
+      else
+      {
+        return invalid_completion_signature<_WHERE(_IN_ALGORITHM, _UponTag),
+                                            _WHAT(_FUNCTION_IS_NOT_CALLABLE),
+                                            _WITH_FUNCTION(_Fn),
+                                            _WITH_ARGUMENTS(_Ts...)>();
+      }
+    }
+  };
+
   template <class _Fn, class _Sndr>
   struct _CCCL_TYPE_VISIBILITY_DEFAULT __sndr_t
   {
@@ -219,6 +215,26 @@ private:
     _CCCL_NO_UNIQUE_ADDRESS _UponTag __tag_;
     _Fn __fn_;
     _Sndr __sndr_;
+
+    template <class _Self, class... _Env>
+    _CUDAX_API static constexpr auto get_completion_signatures()
+    {
+      _CUDAX_LET_COMPLETIONS(__child_completions, get_child_completion_signatures<_Self, _Sndr, _Env...>())
+      {
+        if constexpr (_Disposition == __disposition_t::__value)
+        {
+          return transform_completion_signatures(__child_completions, __transform_args_fn<_Fn>{});
+        }
+        else if constexpr (_Disposition == __disposition_t::__error)
+        {
+          return transform_completion_signatures(__child_completions, {}, __transform_args_fn<_Fn>{});
+        }
+        else
+        {
+          return transform_completion_signatures(__child_completions, {}, {}, __transform_args_fn<_Fn>{});
+        }
+      }
+    }
 
     template <class _Rcvr>
     _CUDAX_API auto connect(_Rcvr __rcvr) && //

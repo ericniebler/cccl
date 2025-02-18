@@ -62,12 +62,12 @@ struct __rcvr_with_env_t : _Rcvr
   }
 
   template <class _Query, class _Self = __rcvr_with_env_t>
-  using _1st_env_t = decltype(__declval<const _Self&>().__get_1st(_Query{}));
+  using __1st_env_t = decltype(__declval<const _Self&>().__get_1st(_Query{}));
 
   template <class _Query>
   _CUDAX_TRIVIAL_API constexpr auto query(_Query __query) const
-    noexcept(__nothrow_queryable<_1st_env_t<_Query>, _Query>) //
-    -> __query_result_t<_1st_env_t<_Query>, _Query>
+    noexcept(__nothrow_queryable<__1st_env_t<_Query>, _Query>) //
+    -> __query_result_t<__1st_env_t<_Query>, _Query>
   {
     return __get_1st(__query).query(__query);
   }
@@ -121,12 +121,12 @@ struct __rcvr_with_env_t<_Rcvr*, _Env>
   }
 
   template <class _Query, class _Self = __rcvr_with_env_t>
-  using _1st_env_t = decltype(__declval<const _Self&>().__get_1st(_Query{}));
+  using __1st_env_t = decltype(__declval<const _Self&>().__get_1st(_Query{}));
 
   template <class _Query>
   _CUDAX_TRIVIAL_API constexpr auto query(_Query __query) const
-    noexcept(__nothrow_queryable<_1st_env_t<_Query>, _Query>) //
-    -> __query_result_t<_1st_env_t<_Query>, _Query>
+    noexcept(__nothrow_queryable<__1st_env_t<_Query>, _Query>) //
+    -> __query_result_t<__1st_env_t<_Query>, _Query>
   {
     return __get_1st(__query).query(__query);
   }

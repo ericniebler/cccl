@@ -71,6 +71,8 @@ struct _WITH_QUERY;
 
 struct _WITH_ENVIRONMENT;
 
+struct _WITH_SIGNATURES;
+
 template <class>
 struct _WITH_COMPLETION_SIGNATURE;
 
@@ -80,13 +82,17 @@ struct _UNKNOWN;
 
 struct _SENDER_HAS_TOO_MANY_SUCCESS_COMPLETIONS;
 
+struct _ARGUMENTS_ARE_NOT_DECAY_COPYABLE;
+
 template <class... _Sigs>
 struct _WITH_COMPLETIONS
 {};
 
 struct __merror_base
 {
-  constexpr friend bool __ustdex_unhandled_error(void*) noexcept
+  // virtual ~__merror_base() = default;
+
+  _CUDAX_TRIVIAL_API constexpr friend bool __ustdex_unhandled_error(void*) noexcept
   {
     return true;
   }
@@ -111,13 +117,13 @@ struct _ERROR : __merror_base
   using __sends_stopped _CCCL_NODEBUG_ALIAS = _ERROR;
 
   // The following operator overloads also simplify error propagation.
-  _ERROR operator+();
+  _CUDAX_API _CUDAX_CONSTEVAL _ERROR operator+();
 
   template <class _Ty>
-  _ERROR& operator,(_Ty&);
+  _CUDAX_API _CUDAX_CONSTEVAL _ERROR &operator,(_Ty&);
 
   template <class... _With>
-  _ERROR<_What..., _With...>& with(_ERROR<_With...>&);
+  _CUDAX_API _CUDAX_CONSTEVAL _ERROR<_What..., _With...>& with(_ERROR<_With...>&);
 };
 
 constexpr bool __ustdex_unhandled_error(...) noexcept
@@ -226,6 +232,13 @@ struct __type_try_quote<_Fn, _Default>
     typename _CUDA_VSTD::conditional_t<__type_valid_v<_Fn, _Ts...>, //
                                        __type_try_quote<_Fn>,
                                        _CUDA_VSTD::__type_always<_Default>>::template __call<_Ts...>;
+};
+
+template <class _Return>
+struct __type_function
+{
+  template <class... _Args>
+  using __call _CCCL_NODEBUG_ALIAS = _Return(_Args...);
 };
 
 template <class _First, class _Second>

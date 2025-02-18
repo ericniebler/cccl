@@ -66,7 +66,7 @@ private:
     }
   };
 
-  template <class _Sndr>
+  template <class _Values>
   struct __state_t
   {
     struct _CCCL_TYPE_VISIBILITY_DEFAULT __rcvr_t
@@ -81,10 +81,11 @@ private:
           ({ //
             __state_->__values_->emplace(static_cast<_As&&>(__as)...);
           }), //
-          _CUDAX_CATCH(...)( //
-            { //
-              __state_->__eptr_ = ::std::current_exception();
-            }))
+          _CUDAX_CATCH(...) //
+          ({ //
+            __state_->__eptr_ = ::std::current_exception();
+          }) //
+        )
         __state_->__loop_.finish();
       }
 
@@ -117,19 +118,7 @@ private:
       }
     };
 
-    using __completions_t = completion_signatures_of_t<_Sndr, __rcvr_t>;
-
-    struct __on_success
-    {
-      using type = __value_types<__completions_t, _CUDA_VSTD::tuple, _CUDA_VSTD::__type_self_t>;
-    };
-
-    using __on_error = _CUDA_VSTD::type_identity<_CUDA_VSTD::tuple<__completions_t>>;
-
-    using __values_t =
-      typename _CUDA_VSTD::_If<__is_completion_signatures<__completions_t>, __on_success, __on_error>::type;
-
-    _CUDA_VSTD::optional<__values_t>* __values_;
+    _CUDA_VSTD::optional<_Values>* __values_;
     ::std::exception_ptr __eptr_;
     run_loop __loop_;
   };
@@ -180,9 +169,7 @@ public:
   template <class _Sndr>
   auto operator()(_Sndr&& __sndr) const
   {
-    using __rcvr_t      = typename __state_t<_Sndr>::__rcvr_t;
-    using __values_t    = typename __state_t<_Sndr>::__values_t;
-    using __completions = typename __state_t<_Sndr>::__completions_t;
+    using __completions = completion_signatures_of_t<_Sndr, __env_t>;
 
     if constexpr (!__is_completion_signatures<__completions>)
     {
@@ -190,11 +177,13 @@ public:
     }
     else
     {
-      _CUDA_VSTD::optional<__values_t> __result{};
-      __state_t<_Sndr> __state{&__result, {}, {}};
+      using __values = __value_types<__completions, _CUDA_VSTD::tuple, _CUDA_VSTD::__type_self_t>;
+      _CUDA_VSTD::optional<__values> __result{};
+      __state_t<__values> __state{&__result, {}, {}};
 
       // Launch the sender with a continuation that will fill in a variant
-      auto __opstate = __async::connect(static_cast<_Sndr&&>(__sndr), __rcvr_t{&__state});
+      using __rcvr   = typename __state_t<__values>::__rcvr_t;
+      auto __opstate = __async::connect(static_cast<_Sndr&&>(__sndr), __rcvr{&__state});
       __async::start(__opstate);
 
       // Wait for the variant to be filled in, and process any work that

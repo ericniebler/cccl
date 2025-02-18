@@ -54,8 +54,6 @@ private:
   struct opstate_t : cudax_async::__immovable
   {
     using operation_state_concept = cudax_async::operation_state_t;
-    using completion_signatures =
-      cudax_async::completion_signatures<cudax_async::set_value_t(), cudax_async::set_stopped_t()>;
 
     data_t* data_;
     Rcvr rcvr_;
@@ -102,10 +100,14 @@ private:
   struct sndr_t
   {
     using sender_concept = cudax_async::sender_t;
-    using completion_signatures =
-      cudax_async::completion_signatures<cudax_async::set_value_t(), cudax_async::set_stopped_t()>;
 
     data_t* data_;
+
+    template <class Self, class... Env>
+    _CCCL_HOST_DEVICE static constexpr auto get_completion_signatures()
+    {
+      return cudax_async::completion_signatures<cudax_async::set_value_t(), cudax_async::set_stopped_t()>();
+    }
 
     template <class Rcvr>
     opstate_t<Rcvr> connect(Rcvr rcvr)

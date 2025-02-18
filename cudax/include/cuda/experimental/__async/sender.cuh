@@ -25,7 +25,6 @@
 #include <cuda/experimental/__detail/config.cuh>
 
 // Include the other implementation headers:
-#include <cuda/experimental/__async/sender/basic_sender.cuh>
 #include <cuda/experimental/__async/sender/conditional.cuh>
 #include <cuda/experimental/__async/sender/continue_on.cuh>
 #include <cuda/experimental/__async/sender/cpos.cuh>
