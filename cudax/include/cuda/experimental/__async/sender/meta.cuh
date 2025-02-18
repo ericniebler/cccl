@@ -44,7 +44,7 @@ template <class _Ret, class... _Args>
 using __fn_t = _Ret(_Args...);
 
 template <class _Ty>
-_Ty&& __declval() noexcept;
+_Ty&& declval() noexcept;
 
 template <size_t... _Vals>
 struct __moffsets;
@@ -150,7 +150,7 @@ inline constexpr bool __type_contains_error =
 #endif
 
 template <class... _Ts>
-using __type_find_error = decltype(+(__declval<_Ts&>(), ..., __declval<_ERROR<_UNKNOWN>&>()));
+using __type_find_error = decltype(+(declval<_Ts&>(), ..., declval<_ERROR<_UNKNOWN>&>()));
 
 template <template <class...> class _Fn, class... _Ts>
 inline constexpr bool __type_valid_v = _CUDA_VSTD::_IsValidExpansion<_Fn, _Ts...>::value;
@@ -166,7 +166,7 @@ template <>
 struct __type_self_or_error_with_<true>
 {
   template <class _Ty, class... _With>
-  using __call _CCCL_NODEBUG_ALIAS = decltype(__declval<_Ty&>().with(__declval<_ERROR<_With...>&>()));
+  using __call _CCCL_NODEBUG_ALIAS = decltype(declval<_Ty&>().with(declval<_ERROR<_With...>&>()));
 };
 
 template <class _Ty, class... _With>

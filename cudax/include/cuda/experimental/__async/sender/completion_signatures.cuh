@@ -13,14 +13,6 @@
 
 #include <cuda/std/detail/__config>
 
-#include "cuda/__cccl_config"
-#include "cuda/experimental/__detail/config.cuh"
-#include "cuda/std/__cccl/attributes.h"
-#include "cuda/std/__type_traits/is_callable.h"
-#include "cuda/std/__type_traits/type_list.h"
-#include "nv/detail/__target_macros"
-#include <fcntl.h>
-
 #if defined(_CCCL_IMPLICIT_SYSTEM_HEADER_GCC)
 #  pragma GCC system_header
 #elif defined(_CCCL_IMPLICIT_SYSTEM_HEADER_CLANG)
@@ -32,6 +24,9 @@
 #include <cuda/std/__type_traits/conditional.h>
 #include <cuda/std/__type_traits/disjunction.h>
 #include <cuda/std/__type_traits/enable_if.h>
+#include <cuda/std/__type_traits/is_base_of.h>
+#include <cuda/std/__type_traits/is_callable.h>
+#include <cuda/std/__type_traits/type_list.h>
 #include <cuda/std/__utility/typeid.h>
 #include <cuda/std/tuple>
 
@@ -41,6 +36,9 @@
 #include <cuda/experimental/__async/sender/type_traits.cuh>
 #include <cuda/experimental/__detail/config.cuh>
 
+#include <nv/target>
+
+// include this last:
 #include <cuda/experimental/__async/sender/prologue.cuh>
 
 namespace cuda::experimental::__async
@@ -69,18 +67,28 @@ template <class _Partitioned>
 _CUDAX_API auto __unpack_partitioned_completions(__undefined<_Partitioned>&) -> _Partitioned;
 
 template <class... _Sigs>
-using __partition_completion_signatures_t _CCCL_NODEBUG_ALIAS = decltype(__async::__unpack_partitioned_completions(
-  (declval<__undefined<__partitioned_completions<>>&>() * ... * static_cast<_Sigs*>(nullptr))));
+using __partition_completion_signatures_t _CCCL_NODEBUG_ALIAS = //
+  decltype(__async::__unpack_partitioned_completions(
+    (declval<__undefined<__partitioned_completions<>>&>() * ... * static_cast<_Sigs*>(nullptr))));
 
-struct __concat_completion_signatures_fn;
-
-template <class... _Sigs>
-using __concat_completion_signatures =
-  _CUDA_VSTD::__call_result_t<_CUDA_VSTD::__call_result_t<__concat_completion_signatures_fn, const _Sigs&...>>;
+struct __concat_completion_signatures_helper;
 
 template <class... _Sigs>
-_CUDAX_TRIVIAL_API constexpr auto concat_completion_signatures(const _Sigs&...) noexcept
-  -> __concat_completion_signatures<_Sigs...>;
+using __concat_completion_signatures_t =
+  _CUDA_VSTD::__call_result_t<_CUDA_VSTD::__call_result_t<__concat_completion_signatures_helper, const _Sigs&...>>;
+
+struct __concat_completion_signatures_fn
+{
+  template <class... _Sigs>
+  _CUDAX_TRIVIAL_API constexpr auto operator()(const _Sigs&...) const noexcept
+    -> __concat_completion_signatures_t<_Sigs...>;
+};
+
+#if defined(__CUDA_ARCH__)
+extern _CCCL_DEVICE const __concat_completion_signatures_fn concat_completion_signatures;
+#else
+extern const __concat_completion_signatures_fn concat_completion_signatures;
+#endif
 
 #if defined(__cpp_constexpr_exceptions) // C++26, https://wg21.link/p3068
 template <class... What, class... Values>
@@ -119,7 +127,7 @@ public:
   _CUDAX_API static constexpr auto apply(_Fn) -> _CUDA_VSTD::__call_result_t<_Fn, _Sigs*...>;
 
   template <class _Fn>
-  _CUDAX_API static constexpr auto filter(_Fn) -> __concat_completion_signatures<__completion_if<_Fn, _Sigs>...>;
+  _CUDAX_API static constexpr auto filter(_Fn) -> __concat_completion_signatures_t<__completion_if<_Fn, _Sigs>...>;
 
   template <class _Tag>
   _CUDAX_API static constexpr auto select(_Tag) noexcept;
@@ -150,6 +158,8 @@ _CUDAX_API constexpr size_t completion_signatures<_Sigs...>::count(_Tag) noexcep
   }
 }
 
+completion_signatures() -> completion_signatures<>;
+
 template <class... _Sigs>
 template <class _Fn>
 _CUDAX_API constexpr auto completion_signatures<_Sigs...>::apply(_Fn __fn)
@@ -171,9 +181,9 @@ _CUDAX_API constexpr auto __filer_one(_Fn __fn, _Sig* __sig) -> __completion_if<
 template <class... _Sigs>
 template <class _Fn>
 _CUDAX_API constexpr auto completion_signatures<_Sigs...>::filter(_Fn __fn)
-  -> __concat_completion_signatures<__completion_if<_Fn, _Sigs>...>
+  -> __concat_completion_signatures_t<__completion_if<_Fn, _Sigs>...>
 {
-  return __async::concat_completion_signatures(__async::__filer_one(__fn, static_cast<_Sigs*>(nullptr))...);
+  return concat_completion_signatures(__async::__filer_one(__fn, static_cast<_Sigs*>(nullptr))...);
 }
 
 template <class... _Sigs>
@@ -206,7 +216,7 @@ template <class _Ty>
 _CCCL_CONCEPT __valid_completion_signatures = detail::__is_specialization_of<_Ty, completion_signatures>;
 
 template <class _Derived>
-struct __compile_time_error // : ::std::exception
+struct _CCCL_TYPE_VISIBILITY_DEFAULT __compile_time_error // : ::std::exception
 {
   __compile_time_error() = default;
 
@@ -217,7 +227,8 @@ struct __compile_time_error // : ::std::exception
 };
 
 template <class _Data, class... _What>
-struct __sender_type_check_failure : __compile_time_error<__sender_type_check_failure<_Data, _What...>>
+struct _CCCL_TYPE_VISIBILITY_DEFAULT __sender_type_check_failure
+    : __compile_time_error<__sender_type_check_failure<_Data, _What...>>
 {
   __sender_type_check_failure() = default;
 
@@ -228,7 +239,7 @@ struct __sender_type_check_failure : __compile_time_error<__sender_type_check_fa
   _Data data_{};
 };
 
-struct dependent_sender_error // : ::std::exception
+struct _CCCL_TYPE_VISIBILITY_DEFAULT dependent_sender_error // : ::std::exception
 {
   _CUDAX_TRIVIAL_API char const* what() const noexcept // override
   {
@@ -239,7 +250,7 @@ struct dependent_sender_error // : ::std::exception
 };
 
 template <class _Sndr>
-struct __dependent_sender_error : dependent_sender_error
+struct _CCCL_TYPE_VISIBILITY_DEFAULT __dependent_sender_error : dependent_sender_error
 {
   _CUDAX_TRIVIAL_API constexpr __dependent_sender_error() noexcept
       : dependent_sender_error{"This sender needs to know its execution " //
@@ -256,10 +267,10 @@ struct __dependent_sender_error : dependent_sender_error
 };
 
 #if defined(__cpp_constexpr_exceptions) // C++26, https://wg21.link/p3068
-#  define _CUDAX_LET_COMPLETIONS(_VARIABLE, ...)                        \
-    if constexpr ([[maybe_unused]] auto _VARIABLE = __VA_ARGS__; false) \
-    {                                                                   \
-    }                                                                   \
+#  define _CUDAX_LET_COMPLETIONS(...)                  \
+    if constexpr ([[maybe_unused]] __VA_ARGS__; false) \
+    {                                                  \
+    }                                                  \
     else
 
 template <class... What, class... Values>
@@ -281,12 +292,21 @@ template <class... _Sndr>
   throw __dependent_sender_error<_Sndr...>();
 }
 #else
-#  define _CUDAX_LET_COMPLETIONS(_VARIABLE, ...)                                                      \
-    if constexpr ([[maybe_unused]] auto _VARIABLE = _CUDA_VSTD::decay_t<decltype(__VA_ARGS__)>{};     \
-                  !::cuda::experimental::__async::__valid_completion_signatures<decltype(_VARIABLE)>) \
-    {                                                                                                 \
-      return _VARIABLE;                                                                               \
-    }                                                                                                 \
+
+#  define _CUDAX_PP_EAT_AUTO_auto
+
+#  define _CUDAX_LET_COMPLETIONS_ID_HELPER(_ID) _ID _CCCL_PP_EAT _CCCL_PP_LPAREN
+#  define _CUDAX_LET_COMPLETIONS_ID(...) \
+    _CCCL_PP_EXPAND(_CCCL_PP_EXPAND(     \
+      _CUDAX_LET_COMPLETIONS_ID_HELPER _CCCL_PP_CAT(_CUDAX_PP_EAT_AUTO_, __VA_ARGS__) _CCCL_PP_RPAREN))
+
+#  define _CUDAX_LET_COMPLETIONS(...)                                                                               \
+    if constexpr ([[maybe_unused]] __VA_ARGS__;                                                                     \
+                  !::cuda::experimental::__async::__valid_completion_signatures<decltype(_CUDAX_LET_COMPLETIONS_ID( \
+                    __VA_ARGS__))>)                                                                                 \
+    {                                                                                                               \
+      return _CUDAX_LET_COMPLETIONS_ID(__VA_ARGS__);                                                                \
+    }                                                                                                               \
     else
 
 template <class... What, class... Values>
@@ -302,8 +322,8 @@ template <class... _Sndr>
 }
 #endif
 
-#define _CUDAX_GET_COMPLSIGS(_Sndr, ...) \
-  _CUDA_VSTD::remove_reference_t<_Sndr>::template get_completion_signatures<_Sndr __VA_OPT__(, ) __VA_ARGS__>()
+#define _CUDAX_GET_COMPLSIGS(...) \
+  _CUDA_VSTD::remove_reference_t<_Sndr>::template get_completion_signatures<__VA_ARGS__>()
 
 #define _CUDAX_CHECKED_COMPLSIGS(...) (__VA_ARGS__, __async::__checked_complsigs<decltype(__VA_ARGS__)>())
 
@@ -313,7 +333,7 @@ struct _CHECKED
 template <class _Completions>
 _CUDAX_TRIVIAL_API _CUDAX_CONSTEVAL auto __checked_complsigs()
 {
-  _CUDAX_LET_COMPLETIONS(__cs, _Completions())
+  _CUDAX_LET_COMPLETIONS(auto(__cs) = _Completions())
   {
     if constexpr (__valid_completion_signatures<_Completions>)
     {
@@ -326,12 +346,22 @@ _CUDAX_TRIVIAL_API _CUDAX_CONSTEVAL auto __checked_complsigs()
   }
 }
 
-// clang-format off
 template <class _Sndr, class... _Env>
-_CCCL_CONCEPT __has_get_completion_signatures =
-  _CCCL_REQUIRES_EXPR((_Sndr, variadic _Env))
+inline constexpr bool __has_get_completion_signatures = false;
+
+// clang-format off
+template <class _Sndr>
+inline constexpr bool __has_get_completion_signatures<_Sndr> =
+  _CCCL_REQUIRES_EXPR((_Sndr))
   (
-    (_CUDAX_GET_COMPLSIGS(_Sndr, _Env...))
+    (_CUDAX_GET_COMPLSIGS(_Sndr))
+  );
+
+template <class _Sndr, class _Env>
+inline constexpr bool __has_get_completion_signatures<_Sndr, _Env> =
+  _CCCL_REQUIRES_EXPR((_Sndr, _Env))
+  (
+    (_CUDAX_GET_COMPLSIGS(_Sndr, _Env))
   );
 // clang-format on
 
@@ -390,8 +420,8 @@ constexpr auto get_child_completion_signatures()
   return __async::get_completion_signatures<__copy_cvref_t<_Parent, _Child>, _FWD_ENV_T<_Env>...>();
 }
 
-#undef _CUDAX_GET_COMPLSIGS
-#undef _CUDAX_CHECKED_COMPLSIGS
+// #undef _CUDAX_GET_COMPLSIGS
+// #undef _CUDAX_CHECKED_COMPLSIGS
 
 template <class _Completions>
 using __partitioned_completions_of = typename _Completions::__partitioned;
@@ -524,7 +554,7 @@ _CUDAX_TRIVIAL_API constexpr auto make_completion_signatures(_DeducedSigs*...) n
 // concat_completion_signatures
 extern const completion_signatures<>& __empty_completion_signatures;
 
-struct __concat_completion_signatures_fn
+struct __concat_completion_signatures_helper
 {
   _CUDAX_TRIVIAL_API constexpr auto operator()() const noexcept -> completion_signatures<> (*)()
   {
@@ -538,7 +568,7 @@ struct __concat_completion_signatures_fn
     return nullptr;
   }
 
-  template <class _Self = __concat_completion_signatures_fn,
+  template <class _Self = __concat_completion_signatures_helper,
             class... _As,
             class... _Bs,
             class... _Cs,
@@ -581,15 +611,17 @@ struct __concat_completion_signatures_fn
 };
 
 template <class... _Sigs>
-using __concat_completion_signatures =
-  _CUDA_VSTD::__call_result_t<_CUDA_VSTD::__call_result_t<__concat_completion_signatures_fn, const _Sigs&...>>;
+using __concat_completion_signatures_t =
+  _CUDA_VSTD::__call_result_t<_CUDA_VSTD::__call_result_t<__concat_completion_signatures_helper, const _Sigs&...>>;
 
 template <class... _Sigs>
-_CUDAX_TRIVIAL_API constexpr auto concat_completion_signatures(const _Sigs&...) noexcept
-  -> __concat_completion_signatures<_Sigs...>
+_CUDAX_TRIVIAL_API constexpr auto __concat_completion_signatures_fn::operator()(const _Sigs&...) const noexcept
+  -> __concat_completion_signatures_t<_Sigs...>
 {
   return {};
 }
+
+_CCCL_GLOBAL_CONSTANT __concat_completion_signatures_fn concat_completion_signatures{};
 
 template <class... _Sigs>
 template <class... _OtherSigs>
@@ -606,7 +638,7 @@ completion_signatures<_Sigs...>::operator+(const completion_signatures<_OtherSig
   }
   else
   {
-    return __async::concat_completion_signatures(*this, __other);
+    return concat_completion_signatures(*this, __other);
   }
 }
 
@@ -636,14 +668,14 @@ template <class _Tag>
 struct __default_transform_fn
 {
   template <class... _Ts>
-  constexpr auto operator()() const noexcept -> completion_signatures<_Tag(_Ts...)>
+  _CUDAX_TRIVIAL_API constexpr auto operator()() const noexcept -> completion_signatures<_Tag(_Ts...)>
   {
     return {};
   }
 };
 
 template <class _Tag>
-inline constexpr __default_transform_fn<_Tag> __default_transform{};
+_CCCL_GLOBAL_CONSTANT __default_transform_fn<_Tag> __default_transform{};
 
 struct __swallow_transform
 {
@@ -689,13 +721,13 @@ struct _COULD_NOT_CALL_THE_TRANSFORM_FUNCTION_WITH_THE_GIVEN_TEMPLATE_ARGUMENTS;
 
 // transform_completion_signatures:
 template <class... _As, class _Fn>
-constexpr auto __apply_transform(const _Fn& __fn)
+_CUDAX_API constexpr auto __apply_transform(const _Fn& __fn)
 {
   if constexpr (__type_valid_v<__transform_expr_t, _Fn, _As...>)
   {
-    using __cs = __transform_expr_t<_Fn, _As...>;
-    if constexpr (__valid_completion_signatures<__cs> || __type_is_error<__cs>
-                  || _CUDA_VSTD::is_base_of_v<dependent_sender_error, __cs>)
+    using __completions = __transform_expr_t<_Fn, _As...>;
+    if constexpr (__valid_completion_signatures<__completions> || __type_is_error<__completions>
+                  || _CUDA_VSTD::is_base_of_v<dependent_sender_error, __completions>)
     {
       return __async::__transform_expr<_As...>(__fn);
     }
@@ -752,7 +784,7 @@ struct __transform_all_fn
   template <class... _Sigs>
   _CUDAX_API constexpr auto operator()(_Sigs*... __sigs) const
   {
-    return __async::concat_completion_signatures(__tfx1(__sigs)...);
+    return concat_completion_signatures(__tfx1(__sigs)...);
   }
 };
 
@@ -771,12 +803,12 @@ _CUDAX_API constexpr auto transform_completion_signatures(
   _StoppedFn __stopped_fn = {},
   _ExtraSigs              = {})
 {
-  _CUDAX_LET_COMPLETIONS(__completions, _Completions())
+  _CUDAX_LET_COMPLETIONS(auto(__completions) = _Completions())
   {
-    _CUDAX_LET_COMPLETIONS(__extra, _ExtraSigs())
+    _CUDAX_LET_COMPLETIONS(auto(__extra) = _ExtraSigs())
     {
       __transform_one<_ValueFn, _ErrorFn, _StoppedFn> __tfx1{__value_fn, __error_fn, __stopped_fn};
-      return __async::concat_completion_signatures(__completions.apply(__transform_all_fn{__tfx1}), __extra);
+      return concat_completion_signatures(__completions.apply(__transform_all_fn{__tfx1}), __extra);
     }
   }
 }
@@ -785,7 +817,7 @@ _CUDAX_API inline constexpr auto __eptr_completion() noexcept
 {
   NV_IF_ELSE_TARGET(NV_IS_HOST,
                     (return completion_signatures<set_error_t(::std::exception_ptr)>();),
-                    (return completion_signatures();));
+                    (return completion_signatures{};));
 }
 
 template <bool _PotentiallyThrowing>
@@ -797,19 +829,37 @@ _CUDAX_API constexpr auto __eptr_completion_if() noexcept
   }
   else
   {
-    return completion_signatures();
+    return completion_signatures{};
   }
 }
 
-template <class _Type>
-inline constexpr bool __is_completion_signatures = detail::__is_specialization_of<_Type, completion_signatures>;
-
+#if defined(__cpp_constexpr_exceptions) // C++26, https://wg21.link/p3068
+// When asked for its completions without an envitonment, a dependent sender
+// will throw an exception of a type derived from `dependent_sender_error`.
 template <class _Sndr>
-using __is_non_dependent_detail_ = //
-  _CUDA_VSTD::enable_if_t<__is_completion_signatures<completion_signatures_of_t<_Sndr>>>;
-
+_CUDAX_API constexpr bool __is_dependent_sender() noexcept
+try
+{
+  (void) get_completion_signatures<_Sndr>();
+  return false; // didn't throw, not a dependent sender
+}
+catch (dependent_sender_error&)
+{
+  return true;
+}
+catch (...)
+{
+  return false; // different kind of exception was thrown; not a dependent sender
+}
+#else
 template <class _Sndr>
-inline constexpr bool __is_non_dependent_sender = __type_valid_v<__is_non_dependent_detail_, _Sndr>;
+_CUDAX_API constexpr bool __is_dependent_sender() noexcept
+{
+  using _Completions = decltype(get_completion_signatures<_Sndr>());
+  return _CUDA_VSTD::is_base_of_v<dependent_sender_error, _Completions>;
+}
+#endif
+
 } // namespace cuda::experimental::__async
 
 #include <cuda/experimental/__async/sender/epilogue.cuh>

@@ -81,7 +81,7 @@ struct __operation : __task
   {
     auto& __rcvr = static_cast<__operation*>(__p)->__rcvr_;
     _CUDAX_TRY( //
-      ({ //
+      ({        //
         if (get_stop_token(get_env(__rcvr)).stop_requested())
         {
           set_stopped(static_cast<_Rcvr&&>(__rcvr));
@@ -92,7 +92,7 @@ struct __operation : __task
         }
       }),
       _CUDAX_CATCH(...) //
-      ({ //
+      ({                //
         set_error(static_cast<_Rcvr&&>(__rcvr), ::std::current_exception());
       }) //
     )
@@ -224,14 +224,15 @@ private:
 
 template <class _Rcvr>
 _CUDAX_API inline void __operation<_Rcvr>::start() & noexcept {
-  _CUDAX_TRY( //
-    ({ //
-      __loop_->__push_back(this); //
-    }), //
-    _CUDAX_CATCH(...)( //
-      { //
-        set_error(static_cast<_Rcvr&&>(__rcvr_), ::std::current_exception()); //
-      })) //
+  _CUDAX_TRY(                                                               //
+    ({                                                                      //
+      __loop_->__push_back(this);                                           //
+    }),                                                                     //
+    _CUDAX_CATCH(...)                                                       //
+    ({                                                                      //
+      set_error(static_cast<_Rcvr&&>(__rcvr_), ::std::current_exception()); //
+    })                                                                      //
+    )                                                                       //
 }
 
 _CUDAX_API inline void run_loop::run()

@@ -21,6 +21,8 @@
 #  pragma system_header
 #endif // no system header
 
+#include <cuda/std/__cccl/unreachable.h>
+
 #include <cuda/experimental/__async/sender/completion_signatures.cuh>
 #include <cuda/experimental/__async/sender/cpos.cuh>
 #include <cuda/experimental/__async/sender/exception.cuh>
@@ -107,14 +109,16 @@ struct _CCCL_TYPE_VISIBILITY_DEFAULT __seq::__sndr_t
   template <class _Self, class... _Env>
   _CUDAX_API static constexpr auto get_completion_signatures()
   {
-    _CUDAX_LET_COMPLETIONS(__completions1, get_child_completion_signatures<_Self, _Sndr1, _Env...>())
+    _CUDAX_LET_COMPLETIONS(auto(__completions1) = get_child_completion_signatures<_Self, _Sndr1, _Env...>())
     {
-      _CUDAX_LET_COMPLETIONS(__completions2, get_child_completion_signatures<_Self, _Sndr2, _Env...>())
+      _CUDAX_LET_COMPLETIONS(auto(__completions2) = get_child_completion_signatures<_Self, _Sndr2, _Env...>())
       {
         // ignore the first sender's value completions
         return __completions2 + transform_completion_signatures(__completions1, __swallow_transform());
       }
     }
+
+    _CCCL_UNREACHABLE();
   }
 
   template <class _Rcvr>

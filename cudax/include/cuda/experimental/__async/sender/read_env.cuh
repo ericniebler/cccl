@@ -21,7 +21,9 @@
 #  pragma system_header
 #endif // no system header
 
-#include <cuda/std/__type_traits/conditional.h>
+#include <cuda/std/__cccl/unreachable.h>
+#include <cuda/std/__type_traits/is_callable.h>
+#include <cuda/std/__type_traits/is_void.h>
 
 #include <cuda/experimental/__async/sender/completion_signatures.cuh>
 #include <cuda/experimental/__async/sender/cpos.cuh>
@@ -72,25 +74,16 @@ private:
       else
       {
         _CUDAX_TRY( //
-          ({ //
+          ({        //
             __async::set_value(static_cast<_Rcvr&&>(__rcvr_), _Query()(__async::get_env(__rcvr_)));
           }),
           _CUDAX_CATCH(...) //
-          ({ //
+          ({                //
             __async::set_error(static_cast<_Rcvr&&>(__rcvr_), ::std::current_exception());
           }) //
         )
       }
     }
-  };
-
-  // This makes read_env a dependent sender:
-  template <class _Query>
-  struct _CCCL_TYPE_VISIBILITY_DEFAULT __opstate_t<receiver_archetype, _Query>
-  {
-    using operation_state_concept = operation_state_t;
-    _CUDAX_API explicit __opstate_t(receiver_archetype);
-    _CUDAX_API void start() noexcept;
   };
 
   template <class _Query>
@@ -112,7 +105,7 @@ struct _CCCL_TYPE_VISIBILITY_DEFAULT read_env_t::__sndr_t
   _CCCL_NO_UNIQUE_ADDRESS _Query __query;
 
   template <class _Self, class _Env>
-  _CUDAX_API static auto get_completion_signatures()
+  _CUDAX_API static constexpr auto get_completion_signatures()
   {
     if constexpr (!_CUDA_VSTD::__is_callable_v<_Query, _Env>)
     {
@@ -136,6 +129,8 @@ struct _CCCL_TYPE_VISIBILITY_DEFAULT read_env_t::__sndr_t
     {
       return completion_signatures<set_value_t(__call_result_t<_Query, _Env>), set_error_t(::std::exception_ptr)>{};
     }
+
+    _CCCL_UNREACHABLE();
   }
 
   template <class _Rcvr>

@@ -17,6 +17,8 @@
 #include <memory>
 #include <mutex>
 
+#include "testing.cuh" // IWYU pragma: keep
+
 #if !defined(__CUDA_ARCH__)
 
 namespace

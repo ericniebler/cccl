@@ -13,8 +13,6 @@
 
 #include <cuda/std/detail/__config>
 
-#include "cuda/std/__cccl/attributes.h"
-
 #if defined(_CCCL_IMPLICIT_SYSTEM_HEADER_GCC)
 #  pragma GCC system_header
 #elif defined(_CCCL_IMPLICIT_SYSTEM_HEADER_CLANG)
@@ -23,6 +21,7 @@
 #  pragma system_header
 #endif // no system header
 
+#include <cuda/std/__cccl/unreachable.h>
 #include <cuda/std/__type_traits/conditional.h>
 
 #include <cuda/experimental/__async/sender/completion_signatures.cuh>
@@ -79,11 +78,11 @@ private:
       else
       {
         _CUDAX_TRY( //
-          ({ //
+          ({        //
             __result_.template __emplace<__tupl_t>(_Tag(), static_cast<_As&&>(__as)...);
           }),
           _CUDAX_CATCH(...) //
-          ({ //
+          ({                //
             __async::set_error(static_cast<_Rcvr&&>(__rcvr_), ::std::current_exception());
           }) //
         )
@@ -272,9 +271,10 @@ struct _CCCL_TYPE_VISIBILITY_DEFAULT continue_on_t::__sndr_t
   template <class _Self, class... _Env>
   _CUDAX_API static constexpr auto get_completion_signatures()
   {
-    _CUDAX_LET_COMPLETIONS(__child_completions, get_child_completion_signatures<_Self, _Sndr, _Env...>())
+    _CUDAX_LET_COMPLETIONS(auto(__child_completions) = get_child_completion_signatures<_Self, _Sndr, _Env...>())
     {
-      _CUDAX_LET_COMPLETIONS(__sch_completions, __async::get_completion_signatures<schedule_result_t<_Sch>, _Env...>())
+      _CUDAX_LET_COMPLETIONS(
+        auto(__sch_completions) = __async::get_completion_signatures<schedule_result_t<_Sch>, _Env...>())
       {
         // The scheduler contributes error and stopped completions.
         return concat_completion_signatures(
@@ -283,6 +283,8 @@ struct _CCCL_TYPE_VISIBILITY_DEFAULT continue_on_t::__sndr_t
             __child_completions, __decay_args<set_value_t>{}, __decay_args<set_error_t>{}));
       }
     }
+
+    _CCCL_UNREACHABLE();
   }
 
   template <class _Rcvr>

@@ -13,9 +13,6 @@
 
 #include <cuda/std/detail/__config>
 
-#include "cuda/experimental/__async/sender/type_traits.cuh"
-#include "cuda/experimental/__detail/config.cuh"
-
 #if defined(_CCCL_IMPLICIT_SYSTEM_HEADER_GCC)
 #  pragma GCC system_header
 #elif defined(_CCCL_IMPLICIT_SYSTEM_HEADER_CLANG)
@@ -24,14 +21,19 @@
 #  pragma system_header
 #endif // no system header
 
-#include <cuda/std/__type_traits/conditional.h>
+#include <cuda/std/__cccl/unreachable.h>
+#include <cuda/std/__type_traits/decay.h>
+#include <cuda/std/__type_traits/is_callable.h>
 
 #include <cuda/experimental/__async/sender/completion_signatures.cuh>
+#include <cuda/experimental/__async/sender/concepts.cuh>
 #include <cuda/experimental/__async/sender/cpos.cuh>
 #include <cuda/experimental/__async/sender/exception.cuh>
 #include <cuda/experimental/__async/sender/rcvr_ref.cuh>
 #include <cuda/experimental/__async/sender/tuple.cuh>
+#include <cuda/experimental/__async/sender/type_traits.cuh>
 #include <cuda/experimental/__async/sender/variant.cuh>
+#include <cuda/experimental/__detail/config.cuh>
 
 #include <cuda/experimental/__async/sender/prologue.cuh>
 
@@ -139,7 +141,7 @@ private:
       if constexpr (_Tag() == _SetTag())
       {
         _CUDAX_TRY( //
-          ({ //
+          ({        //
             // Store the results so the lvalue refs we pass to the function
             // will be valid for the duration of the async op.
             auto& __tupl = __result_.template __emplace<__decayed_tuple<_As...>>(static_cast<_As&&>(__as)...);
@@ -150,7 +152,7 @@ private:
             __async::start(__next_op);
           }),
           _CUDAX_CATCH(...) //
-          ({ //
+          ({                //
             __async::set_error(static_cast<_Rcvr&&>(__rcvr_), ::std::current_exception());
           }) //
         )
@@ -232,7 +234,7 @@ private:
     template <class _Self, class... _Env>
     _CUDAX_API static constexpr auto get_completion_signatures()
     {
-      _CUDAX_LET_COMPLETIONS(__child_completions, get_child_completion_signatures<_Self, _Sndr, _Env...>())
+      _CUDAX_LET_COMPLETIONS(auto(__child_completions) = get_child_completion_signatures<_Self, _Sndr, _Env...>())
       {
         if constexpr (_Disposition == __disposition_t::__value)
         {
@@ -247,6 +249,8 @@ private:
           return transform_completion_signatures(__child_completions, {}, {}, __transform_args_fn<_Fn>{});
         }
       }
+
+      _CCCL_UNREACHABLE();
     }
 
     template <class _Rcvr>
@@ -302,10 +306,10 @@ public:
   {
     // If the incoming sender is non-dependent, we can check the completion
     // signatures of the composed sender immediately.
-    if constexpr (__is_non_dependent_sender<_Sndr>)
+    if constexpr (!dependent_sender<_Sndr>)
     {
       using __completions = completion_signatures_of_t<__sndr_t<_Sndr, _Fn>>;
-      static_assert(__is_completion_signatures<__completions>);
+      static_assert(__valid_completion_signatures<__completions>);
     }
     return __sndr_t<_Sndr, _Fn>{{}, static_cast<_Fn&&>(__fn), static_cast<_Sndr&&>(__sndr)};
   }

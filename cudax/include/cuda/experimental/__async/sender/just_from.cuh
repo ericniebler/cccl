@@ -21,6 +21,7 @@
 #  pragma system_header
 #endif // no system header
 
+#include <cuda/std/__cccl/unreachable.h>
 #include <cuda/std/__type_traits/conditional.h>
 
 #include <cuda/experimental/__async/sender/completion_signatures.cuh>
@@ -143,7 +144,7 @@ public:
   _CUDAX_TRIVIAL_API auto operator()(_Fn __fn) const noexcept
   {
     using __completions = __call_result_t<_Fn, __probe_fn>;
-    static_assert(__is_completion_signatures<__completions>,
+    static_assert(__valid_completion_signatures<__completions>,
                   "The function passed to just_from must return an instance of a specialization of "
                   "completion_signatures<>.");
     return __sndr_t<_Fn>{{}, static_cast<_Fn&&>(__fn)};

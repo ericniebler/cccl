@@ -21,9 +21,13 @@
 #  pragma system_header
 #endif // no system header
 
+#include <cuda/std/__cccl/unreachable.h>
+#include <cuda/std/__type_traits/is_callable.h>
 #include <cuda/std/__type_traits/is_same.h>
+#include <cuda/std/__type_traits/type_list.h>
 
 #include <cuda/experimental/__async/sender/completion_signatures.cuh>
+#include <cuda/experimental/__async/sender/concepts.cuh>
 #include <cuda/experimental/__async/sender/cpos.cuh>
 #include <cuda/experimental/__async/sender/exception.cuh>
 #include <cuda/experimental/__async/sender/meta.cuh>
@@ -145,12 +149,12 @@ private:
       }
       else
       {
-        _CUDAX_TRY( //
-          ({ //
+        _CUDAX_TRY(                                   //
+          ({                                          //
             __set<true>(static_cast<_Ts&&>(__ts)...); //
-          }), //
-          _CUDAX_CATCH(...) //
-          ({ //
+          }),                                         //
+          _CUDAX_CATCH(...)                           //
+          ({                                          //
             __async::set_error(static_cast<_Rcvr&&>(__rcvr_), ::std::current_exception());
           }) //
         )
@@ -219,7 +223,7 @@ private:
     template <class _Self, class... _Env>
     _CUDAX_API static constexpr auto get_completion_signatures()
     {
-      _CUDAX_LET_COMPLETIONS(__child_completions, get_child_completion_signatures<_Self, _Sndr, _Env...>())
+      _CUDAX_LET_COMPLETIONS(auto(__child_completions) = get_child_completion_signatures<_Self, _Sndr, _Env...>())
       {
         if constexpr (_Disposition == __disposition_t::__value)
         {
@@ -234,10 +238,12 @@ private:
           return transform_completion_signatures(__child_completions, {}, {}, __transform_args_fn<_Fn>{});
         }
       }
+
+      _CCCL_UNREACHABLE();
     }
 
     template <class _Rcvr>
-    _CUDAX_API auto connect(_Rcvr __rcvr) && //
+    _CUDAX_API auto connect(_Rcvr __rcvr) &&                                               //
       noexcept(__nothrow_constructible<__opstate_t<_Rcvr, _Sndr, _Fn>, _Sndr, _Rcvr, _Fn>) //
       -> __opstate_t<_Rcvr, _Sndr, _Fn>
     {
@@ -289,10 +295,10 @@ public:
   {
     // If the incoming sender is non-dependent, we can check the completion
     // signatures of the composed sender immediately.
-    if constexpr (__is_non_dependent_sender<_Sndr>)
+    if constexpr (!dependent_sender<_Sndr>)
     {
       using __completions = completion_signatures_of_t<__sndr_t<_Fn, _Sndr>>;
-      static_assert(__is_completion_signatures<__completions>);
+      static_assert(__valid_completion_signatures<__completions>);
     }
     return __sndr_t<_Fn, _Sndr>{{}, static_cast<_Fn&&>(__fn), static_cast<_Sndr&&>(__sndr)};
   }

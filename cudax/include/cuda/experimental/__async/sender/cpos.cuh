@@ -21,6 +21,7 @@
 #  pragma system_header
 #endif // no system header
 
+#include <cuda/std/__type_traits/is_same.h>
 #include <cuda/std/__type_traits/remove_cvref.h>
 
 #include <cuda/experimental/__async/sender/env.cuh>
@@ -34,6 +35,8 @@
 
 namespace cuda::experimental::__async
 {
+struct _CCCL_TYPE_VISIBILITY_DEFAULT dependent_sender_error;
+
 template <class... _Sigs>
 struct _CCCL_TYPE_VISIBILITY_DEFAULT completion_signatures;
 
@@ -202,32 +205,17 @@ _CCCL_GLOBAL_CONSTANT struct schedule_t
   }
 } schedule{};
 
-struct receiver_archetype
-{
-  using receiver_concept = receiver_t;
-
-  template <class... _Ts>
-  void set_value(_Ts&&...) noexcept;
-
-  template <class _Error>
-  void set_error(_Error&&) noexcept;
-
-  void set_stopped() noexcept;
-
-  env<> get_env() const noexcept;
-};
-
 template <class _Sndr, class _Rcvr>
-using connect_result_t = decltype(connect(__declval<_Sndr>(), __declval<_Rcvr>()));
+using connect_result_t = decltype(connect(declval<_Sndr>(), declval<_Rcvr>()));
 
 template <class _Sndr, class... _Env>
 using completion_signatures_of_t = decltype(__async::get_completion_signatures<_Sndr, _Env...>());
 
 template <class _Sch>
-using schedule_result_t = decltype(schedule(__declval<_Sch>()));
+using schedule_result_t = decltype(schedule(declval<_Sch>()));
 
 template <class _Sndr, class _Rcvr>
-inline constexpr bool __nothrow_connectable = noexcept(connect(__declval<_Sndr>(), __declval<_Rcvr>()));
+inline constexpr bool __nothrow_connectable = noexcept(connect(declval<_Sndr>(), declval<_Rcvr>()));
 
 namespace __detail
 {

@@ -13,8 +13,6 @@
 
 #include <cuda/std/detail/__config>
 
-#include "cuda/std/__cccl/attributes.h"
-
 #if defined(_CCCL_IMPLICIT_SYSTEM_HEADER_GCC)
 #  pragma GCC system_header
 #elif defined(_CCCL_IMPLICIT_SYSTEM_HEADER_CLANG)
@@ -23,17 +21,17 @@
 #  pragma system_header
 #endif // no system header
 
-#include <cuda/std/__algorithm/all_of.h>
-#include <cuda/std/__algorithm/any_of.h>
-#include <cuda/std/__algorithm/find_if.h>
+#include <cuda/std/__cccl/unreachable.h>
 #include <cuda/std/__numeric/exclusive_scan.h>
-#include <cuda/std/__type_traits/conjunction.h>
-#include <cuda/std/__type_traits/integral_constant.h>
+#include <cuda/std/__type_traits/decay.h>
+#include <cuda/std/__type_traits/is_same.h>
+#include <cuda/std/__type_traits/type_list.h>
+#include <cuda/std/__type_traits/underlying_type.h>
 #include <cuda/std/__utility/integer_sequence.h>
 #include <cuda/std/atomic>
-#include <cuda/std/span>
 
 #include <cuda/experimental/__async/sender/completion_signatures.cuh>
+#include <cuda/experimental/__async/sender/concepts.cuh>
 #include <cuda/experimental/__async/sender/cpos.cuh>
 #include <cuda/experimental/__async/sender/env.cuh>
 #include <cuda/experimental/__async/sender/exception.cuh>
@@ -186,11 +184,11 @@ private:
         else
         {
           _CUDAX_TRY( //
-            ({ //
+            ({        //
               (__values_.template __emplace<_Jdx + _Offset>(static_cast<_Ts&&>(__ts)), ...);
             }),
             _CUDAX_CATCH(...) //
-            ({ //
+            ({                //
               __set_error(::std::current_exception());
             }) //
           )
@@ -214,11 +212,11 @@ private:
         else
         {
           _CUDAX_TRY( //
-            ({ //
+            ({        //
               __errors_.template __emplace<__decay_t<_Error>>(static_cast<_Error&&>(__err));
             }),
             _CUDAX_CATCH(...) //
-            ({ //
+            ({                //
               __errors_.template __emplace<::std::exception_ptr>(::std::current_exception());
             }) //
           )
@@ -278,7 +276,8 @@ private:
     inplace_stop_token __stop_token_;
     _CUDA_VSTD::atomic<_CUDA_VSTD::underlying_type_t<__estate_t>> __state_;
     __errors_t __errors_;
-    _CCCL_NO_UNIQUE_ADDRESS __values_t __values_;
+    // _CCCL_NO_UNIQUE_ADDRESS // gcc doesn't like this
+    __values_t __values_;
     __lazy<__stop_callback_t> __on_stop_;
   };
 
@@ -305,7 +304,7 @@ private:
         // When there are no offsets, the when_all sender has no value
         // completions. All child senders can be connected to receivers
         // of the same type, saving template instantiations.
-        constexpr bool __no_values =
+        [[maybe_unused]] constexpr bool __no_values =
           _CUDA_VSTD::is_same_v<decltype(__state_t::__completions_and_offsets.second), __nil>;
         // The offsets are used to determine which elements in the values
         // tuple each receiver is responsible for setting.
@@ -372,7 +371,7 @@ template <class _Child, class... _Env>
 _CUDAX_API constexpr auto when_all_t::__child_completions()
 {
   using __env_t = prop<get_stop_token_t, inplace_stop_token>;
-  _CUDAX_LET_COMPLETIONS(__completions, get_completion_signatures<_Child, env<__env_t, _FWD_ENV_T<_Env>>...>())
+  _CUDAX_LET_COMPLETIONS(auto(__completions) = get_completion_signatures<_Child, env<__env_t, _FWD_ENV_T<_Env>>...>())
   {
     if constexpr (__completions.count(set_value) > 1)
     {
@@ -387,11 +386,14 @@ _CUDAX_API constexpr auto when_all_t::__child_completions()
   }
 }
 
+_CCCL_DIAG_PUSH
+_CCCL_DIAG_SUPPRESS_GCC("-Wunused-value")
+
 template <class... _Completions>
 _CUDAX_API constexpr auto when_all_t::__merge_completions(_Completions... __cs)
 {
   // Use _CUDAX_LET_COMPLETIONS to ensure all completions are valid:
-  _CUDAX_LET_COMPLETIONS(__tmp, (completion_signatures(), ..., __cs)) // NB: uses overloaded comma operator
+  _CUDAX_LET_COMPLETIONS(auto(__tmp) = (completion_signatures{}, ..., __cs)) // NB: uses overloaded comma operator
   {
     auto __non_value_completions = concat_completion_signatures(
       completion_signatures<set_stopped_t()>(),
@@ -413,7 +415,7 @@ _CUDAX_API constexpr auto when_all_t::__merge_completions(_Completions... __cs)
       // All child senders have exactly one value completion signature, each of
       // which may have multiple arguments. Concatenate all the arguments into a
       // single set_value_t completion signature.
-      using __values_t = _CUDA_VSTD::__type_call< //
+      using __values_t = _CUDA_VSTD::__type_call<         //
         __type_concat_into<__type_function<set_value_t>>, //
         __value_types<_Completions, __decay_all, _CUDA_VSTD::__type_self_t>...>;
       // Add the value completion to the error and stopped completions.
@@ -424,7 +426,11 @@ _CUDAX_API constexpr auto when_all_t::__merge_completions(_Completions... __cs)
       return __pair{__local + __eptr_completion_if<!_NoThrowDecayCopyable::value>(), __offsets};
     }
   }
+
+  _CCCL_UNREACHABLE();
 }
+
+_CCCL_DIAG_POP
 
 // The sender for when_all
 template <class... _Sndrs>
@@ -467,10 +473,10 @@ _CUDAX_API auto when_all_t::operator()(_Sndrs... __sndrs) const -> __sndr_t<_Snd
 {
   // If the incoming senders are non-dependent, we can check the completion
   // signatures of the composed sender immediately.
-  if constexpr ((__is_non_dependent_sender<_Sndrs> && ...))
+  if constexpr (((!dependent_sender<_Sndrs>) && ...))
   {
     using __completions = completion_signatures_of_t<__sndr_t<_Sndrs...>>;
-    static_assert(__is_completion_signatures<__completions>);
+    static_assert(__valid_completion_signatures<__completions>);
   }
   return __sndr_t<_Sndrs...>{{}, {}, {static_cast<_Sndrs&&>(__sndrs)...}};
 }

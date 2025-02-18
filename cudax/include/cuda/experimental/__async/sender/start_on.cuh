@@ -21,6 +21,8 @@
 #  pragma system_header
 #endif // no system header
 
+#include <cuda/std/__cccl/unreachable.h>
+
 #include <cuda/experimental/__async/sender/completion_signatures.cuh>
 #include <cuda/experimental/__async/sender/cpos.cuh>
 #include <cuda/experimental/__async/sender/queries.cuh>
@@ -120,13 +122,17 @@ struct _CCCL_TYPE_VISIBILITY_DEFAULT start_on_t::__sndr_t
   {
     using __sch_sndr   = schedule_result_t<_Sch>;
     using __child_sndr = __copy_cvref_t<_Self, _Sndr>;
-    _CUDAX_LET_COMPLETIONS(__sndr_completions, __async::get_completion_signatures<__child_sndr, __env_t<_Env>...>())
+    _CUDAX_LET_COMPLETIONS(
+      auto(__sndr_completions) = __async::get_completion_signatures<__child_sndr, __env_t<_Env>...>())
     {
-      _CUDAX_LET_COMPLETIONS(__sch_completions, __async::get_completion_signatures<__sch_sndr, _FWD_ENV_T<_Env>...>())
+      _CUDAX_LET_COMPLETIONS(
+        auto(__sch_completions) = __async::get_completion_signatures<__sch_sndr, _FWD_ENV_T<_Env>...>())
       {
         return __sndr_completions + transform_completion_signatures(__sch_completions, __swallow_transform());
       }
     }
+
+    _CCCL_UNREACHABLE();
   }
 
   template <class _Rcvr>

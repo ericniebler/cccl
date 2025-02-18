@@ -21,11 +21,10 @@
 #  pragma system_header
 #endif // no system header
 
-#include <cuda/experimental/__detail/config.cuh>
-
 // run_loop isn't supported on-device yet, so neither can sync_wait be.
 #if !defined(__CUDA_ARCH__)
 
+#  include <cuda/std/__type_traits/is_same.h>
 #  include <cuda/std/__type_traits/type_identity.h>
 #  include <cuda/std/optional>
 #  include <cuda/std/tuple>
@@ -78,11 +77,11 @@ private:
       _CUDAX_API void set_value(_As&&... __as) noexcept
       {
         _CUDAX_TRY( //
-          ({ //
+          ({        //
             __state_->__values_->emplace(static_cast<_As&&>(__as)...);
-          }), //
+          }),               //
           _CUDAX_CATCH(...) //
-          ({ //
+          ({                //
             __state_->__eptr_ = ::std::current_exception();
           }) //
         )
@@ -171,7 +170,7 @@ public:
   {
     using __completions = completion_signatures_of_t<_Sndr, __env_t>;
 
-    if constexpr (!__is_completion_signatures<__completions>)
+    if constexpr (!__valid_completion_signatures<__completions>)
     {
       return __bad_sync_wait<__completions>::__result();
     }

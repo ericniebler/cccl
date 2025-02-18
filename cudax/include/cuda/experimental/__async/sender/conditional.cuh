@@ -11,7 +11,23 @@
 #ifndef __CUDAX_ASYNC_DETAIL_CONDITIONAL
 #define __CUDAX_ASYNC_DETAIL_CONDITIONAL
 
+#include <cuda/std/detail/__config>
+
+#if defined(_CCCL_IMPLICIT_SYSTEM_HEADER_GCC)
+#  pragma GCC system_header
+#elif defined(_CCCL_IMPLICIT_SYSTEM_HEADER_CLANG)
+#  pragma clang system_header
+#elif defined(_CCCL_IMPLICIT_SYSTEM_HEADER_MSVC)
+#  pragma system_header
+#endif // no system header
+
+#include <cuda/std/__cccl/unreachable.h>
+#include <cuda/std/__type_traits/is_callable.h>
+#include <cuda/std/__type_traits/is_convertible.h>
+#include <cuda/std/__type_traits/type_list.h>
+
 #include <cuda/experimental/__async/sender/completion_signatures.cuh>
+#include <cuda/experimental/__async/sender/concepts.cuh>
 #include <cuda/experimental/__async/sender/just_from.cuh>
 #include <cuda/experimental/__async/sender/meta.cuh>
 #include <cuda/experimental/__async/sender/type_traits.cuh>
@@ -20,7 +36,6 @@
 
 #include <exception>
 
-#include "cuda/std/__type_traits/is_convertible.h"
 #include <cuda/experimental/__async/sender/prologue.cuh>
 
 //! \file conditional.cuh
@@ -58,7 +73,7 @@ struct __cond_t
   }
 
   template <class... _As>
-  using __just_from_t = decltype(just_from(__cond_t::__mk_complete_fn(__declval<_As>()...)));
+  using __just_from_t = decltype(just_from(__cond_t::__mk_complete_fn(declval<_As>()...)));
 
   template <class _Pred, class _Then, class _Else, class... _Env>
   struct __either_sig_fn
@@ -102,7 +117,7 @@ struct __cond_t
     }
 
     template <class... _As>
-    using __opstate_t = //
+    using __opstate_t =        //
       _CUDA_VSTD::__type_list< //
         connect_result_t<__call_result_t<_Then, __just_from_t<_As...>>, __rcvr_ref_t<_Rcvr&>>,
         connect_result_t<__call_result_t<_Else, __just_from_t<_As...>>, __rcvr_ref_t<_Rcvr&>>>;
@@ -126,7 +141,7 @@ struct __cond_t
     {
       auto __just = just_from(__cond_t::__mk_complete_fn(static_cast<_As&&>(__as)...));
       _CUDAX_TRY( //
-        ({ //
+        ({        //
           if (static_cast<_Pred&&>(__data_.__pred_)(__as...))
           {
             auto& __op =
@@ -141,7 +156,7 @@ struct __cond_t
           }
         }),
         _CUDAX_CATCH(...) //
-        ({ //
+        ({                //
           __async::set_error(static_cast<_Rcvr&&>(__rcvr_), ::std::current_exception());
         }) //
       )
@@ -214,12 +229,14 @@ struct _CCCL_TYPE_VISIBILITY_DEFAULT __cond_t::__sndr_t
   template <class _Self, class... _Env>
   _CUDAX_API static constexpr auto get_completion_signatures()
   {
-    _CUDAX_LET_COMPLETIONS(__child_completions, get_child_completion_signatures<_Self, _Sndr, _Env...>())
+    _CUDAX_LET_COMPLETIONS(auto(__child_completions) = get_child_completion_signatures<_Self, _Sndr, _Env...>())
     {
       return concat_completion_signatures(
         transform_completion_signatures(__child_completions, __either_sig_fn<_Pred, _Then, _Else, _Env...>{}),
         __eptr_completion());
     }
+
+    _CCCL_UNREACHABLE();
   }
 
   template <class _Rcvr>
@@ -244,10 +261,10 @@ template <class _Sndr, class _Pred, class _Then, class _Else>
 _CUDAX_TRIVIAL_API auto __cond_t::operator()(_Sndr __sndr, _Pred __pred, _Then __then, _Else __else) const //
   -> __sndr_t<_Sndr, _Pred, _Then, _Else>
 {
-  if constexpr (__is_non_dependent_sender<_Sndr>)
+  if constexpr (!dependent_sender<_Sndr>)
   {
     using __completions = completion_signatures_of_t<__sndr_t<_Sndr, _Pred, _Then, _Else>>;
-    static_assert(__is_completion_signatures<__completions>);
+    static_assert(__valid_completion_signatures<__completions>);
   }
 
   return __sndr_t<_Sndr, _Pred, _Then, _Else>{
@@ -261,10 +278,10 @@ template <class _Sndr>
 _CUDAX_TRIVIAL_API auto __cond_t::__closure<_Pred, _Then, _Else>::__mk_sender(_Sndr&& __sndr) //
   -> __sndr_t<_Sndr, _Pred, _Then, _Else>
 {
-  if constexpr (__is_non_dependent_sender<_Sndr>)
+  if constexpr (!dependent_sender<_Sndr>)
   {
     using __completions = completion_signatures_of_t<__sndr_t<_Sndr, _Pred, _Then, _Else>>;
-    static_assert(__is_completion_signatures<__completions>);
+    static_assert(__valid_completion_signatures<__completions>);
   }
 
   return __sndr_t<_Sndr, _Pred, _Then, _Else>{

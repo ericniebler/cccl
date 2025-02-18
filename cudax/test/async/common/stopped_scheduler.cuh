@@ -10,6 +10,10 @@
 
 #pragma once
 
+#include <cuda/experimental/__async/sender.cuh>
+
+#include "testing.cuh" // IWYU pragma: keep
+
 namespace
 {
 //! Scheduler that returns a sender that always completes with stopped.
