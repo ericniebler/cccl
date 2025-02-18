@@ -21,6 +21,8 @@
 #  pragma system_header
 #endif // no system header
 
+#include <cuda/std/__cccl/unreachable.h>
+
 #include <cuda/experimental/__async/sender/completion_signatures.cuh>
 #include <cuda/experimental/__async/sender/cpos.cuh>
 #include <cuda/experimental/__async/sender/queries.cuh>
@@ -60,13 +62,6 @@ private:
     }
 
     using operation_state_concept = operation_state_t;
-
-    using completion_signatures = //
-      transform_completion_signatures<
-        completion_signatures_of_t<_CvSndr, __rcvr_with_env_t<_Rcvr, __sch_env_t<_Sch>>*>,
-        transform_completion_signatures<completion_signatures_of_t<schedule_result_t<_Sch>, __opstate_t*>,
-                                        __async::completion_signatures<>,
-                                        _CUDA_VSTD::__type_always<__async::completion_signatures<>>::__call>>;
 
     __rcvr_with_env_t<_Rcvr, __sch_env_t<_Sch>> __env_rcvr_;
     connect_result_t<schedule_result_t<_Sch>, __opstate_t*> __opstate1_;
@@ -118,6 +113,27 @@ struct _CCCL_TYPE_VISIBILITY_DEFAULT start_on_t::__sndr_t
   _CCCL_NO_UNIQUE_ADDRESS start_on_t __tag_;
   _Sch __sch_;
   _Sndr __sndr_;
+
+  template <class _Env>
+  using __env_t = env<__sch_env_t<_Sch>, _FWD_ENV_T<_Env>>;
+
+  template <class _Self, class... _Env>
+  _CUDAX_API static constexpr auto get_completion_signatures()
+  {
+    using __sch_sndr   = schedule_result_t<_Sch>;
+    using __child_sndr = __copy_cvref_t<_Self, _Sndr>;
+    _CUDAX_LET_COMPLETIONS(
+      auto(__sndr_completions) = __async::get_completion_signatures<__child_sndr, __env_t<_Env>...>())
+    {
+      _CUDAX_LET_COMPLETIONS(
+        auto(__sch_completions) = __async::get_completion_signatures<__sch_sndr, _FWD_ENV_T<_Env>...>())
+      {
+        return __sndr_completions + transform_completion_signatures(__sch_completions, __swallow_transform());
+      }
+    }
+
+    _CCCL_UNREACHABLE();
+  }
 
   template <class _Rcvr>
   _CUDAX_API auto connect(_Rcvr __rcvr) && -> __opstate_t<_Rcvr, _Sch, _Sndr>

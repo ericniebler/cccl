@@ -21,6 +21,8 @@
 #  pragma system_header
 #endif // no system header
 
+#include <cuda/std/__cccl/unreachable.h>
+
 #include <cuda/experimental/__async/sender/completion_signatures.cuh>
 #include <cuda/experimental/__async/sender/cpos.cuh>
 #include <cuda/experimental/__async/sender/exception.cuh>
@@ -51,14 +53,6 @@ struct __seq
     using __rcvr_t  = typename __args_t::__rcvr_t;
     using __sndr1_t = typename __args_t::__sndr1_t;
     using __sndr2_t = typename __args_t::__sndr2_t;
-
-    using completion_signatures = //
-      transform_completion_signatures_of< //
-        __sndr1_t,
-        __opstate*,
-        completion_signatures_of_t<__sndr2_t, __rcvr_ref_t<__rcvr_t&>>,
-        _CUDA_VSTD::__type_always<__async::completion_signatures<>>::__call>; // swallow the first sender's value
-                                                                              // completions
 
     _CUDAX_API friend env_of_t<__rcvr_t> get_env(const __opstate* __self) noexcept
     {
@@ -111,6 +105,21 @@ struct _CCCL_TYPE_VISIBILITY_DEFAULT __seq::__sndr_t
   using sender_concept = sender_t;
   using __sndr1_t      = _Sndr1;
   using __sndr2_t      = _Sndr2;
+
+  template <class _Self, class... _Env>
+  _CUDAX_API static constexpr auto get_completion_signatures()
+  {
+    _CUDAX_LET_COMPLETIONS(auto(__completions1) = get_child_completion_signatures<_Self, _Sndr1, _Env...>())
+    {
+      _CUDAX_LET_COMPLETIONS(auto(__completions2) = get_child_completion_signatures<_Self, _Sndr2, _Env...>())
+      {
+        // ignore the first sender's value completions
+        return __completions2 + transform_completion_signatures(__completions1, __swallow_transform());
+      }
+    }
+
+    _CCCL_UNREACHABLE();
+  }
 
   template <class _Rcvr>
   _CUDAX_API auto connect(_Rcvr __rcvr) &&
