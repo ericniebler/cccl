@@ -13,6 +13,8 @@
 
 #include <cuda/std/detail/__config>
 
+#include "cuda/std/__cccl/diagnostic.h"
+
 #if defined(_CCCL_IMPLICIT_SYSTEM_HEADER_GCC)
 #  pragma GCC system_header
 #elif defined(_CCCL_IMPLICIT_SYSTEM_HEADER_CLANG)
@@ -325,6 +327,11 @@ template <class... _Sndr>
 }
 #endif
 
+_CCCL_DIAG_PUSH
+// warning C4913: user defined binary operator ',' exists but no overload could convert all operands, default built-in
+// binary operator ',' used
+_CCCL_DIAG_SUPPRESS_MSVC(4913)
+
 #define _CUDAX_GET_COMPLSIGS(...) \
   _CUDA_VSTD::remove_reference_t<_Sndr>::template get_completion_signatures<__VA_ARGS__>()
 
@@ -429,6 +436,7 @@ constexpr auto get_child_completion_signatures()
 
 #undef _CUDAX_GET_COMPLSIGS
 #undef _CUDAX_CHECKED_COMPLSIGS
+_CCCL_DIAG_POP
 
 template <class _Completions>
 using __partitioned_completions_of = typename _Completions::__partitioned;
