@@ -683,9 +683,6 @@ struct __default_transform_fn
   }
 };
 
-template <class _Tag>
-_CCCL_GLOBAL_CONSTANT __default_transform_fn<_Tag> __default_transform{};
-
 struct __swallow_transform
 {
   template <class... _Ts>
@@ -801,9 +798,9 @@ template <class _TransformOne>
 __transform_all_fn(_TransformOne) -> __transform_all_fn<_TransformOne>;
 
 template <class _Completions,
-          class _ValueFn   = decltype(__default_transform<set_value_t>),
-          class _ErrorFn   = decltype(__default_transform<set_error_t>),
-          class _StoppedFn = decltype(__default_transform<set_stopped_t>),
+          class _ValueFn   = __default_transform_fn<set_value_t>,
+          class _ErrorFn   = __default_transform_fn<set_error_t>,
+          class _StoppedFn = __default_transform_fn<set_stopped_t>,
           class _ExtraSigs = completion_signatures<>>
 _CUDAX_API constexpr auto transform_completion_signatures(
   _Completions, //
