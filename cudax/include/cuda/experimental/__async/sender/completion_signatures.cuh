@@ -110,10 +110,10 @@ using __completion_if =
 template <class... _Sigs>
 struct _CCCL_TYPE_VISIBILITY_DEFAULT completion_signatures
 {
-  template <template <class...> class _Fn, template <class...> class _Continuation = completion_signatures>
+  template <template <class...> class _Fn, template <class...> class _Continuation = __async::completion_signatures>
   using __transform_q _CCCL_NODEBUG_ALIAS = _Continuation<_CUDA_VSTD::__type_apply_q<_Fn, _Sigs>...>;
 
-  template <class _Fn, class _Continuation = _CUDA_VSTD::__type_quote<completion_signatures>>
+  template <class _Fn, class _Continuation = _CUDA_VSTD::__type_quote<__async::completion_signatures>>
   using __transform _CCCL_NODEBUG_ALIAS = __transform_q<_Fn::template __call, _Continuation::template __call>;
 
   using __partitioned _CCCL_NODEBUG_ALIAS = __partition_completion_signatures_t<_Sigs...>;
@@ -296,12 +296,8 @@ template <class... _Sndr>
 }
 #else
 
-#  define _CUDAX_PP_EAT_AUTO_auto
-
-#  define _CUDAX_LET_COMPLETIONS_ID_HELPER(_ID) _ID _CCCL_PP_EAT _CCCL_PP_LPAREN
-#  define _CUDAX_LET_COMPLETIONS_ID(...) \
-    _CCCL_PP_EXPAND(_CCCL_PP_EXPAND(     \
-      _CUDAX_LET_COMPLETIONS_ID_HELPER _CCCL_PP_CAT(_CUDAX_PP_EAT_AUTO_, __VA_ARGS__) _CCCL_PP_RPAREN))
+#  define _CUDAX_PP_EAT_AUTO_auto(_ID)   _ID _CCCL_PP_EAT _CCCL_PP_LPAREN
+#  define _CUDAX_LET_COMPLETIONS_ID(...) _CCCL_PP_EXPAND(_CCCL_PP_CAT(_CUDAX_PP_EAT_AUTO_, __VA_ARGS__) _CCCL_PP_RPAREN)
 
 #  define _CUDAX_LET_COMPLETIONS(...)                                                                               \
     if constexpr ([[maybe_unused]] __VA_ARGS__;                                                                     \
