@@ -106,14 +106,18 @@ template <class _Fn, class _Sig>
 using __completion_if =
   _CUDA_VSTD::_If<_CUDA_VSTD::__is_callable_v<_Fn, _Sig*>, completion_signatures<_Sig>, completion_signatures<>>;
 
+// working around compiler bugs in gcc and msvc
+template <class... _Sigs>
+using __completion_signatures = completion_signatures<_Sigs...>;
+
 // A typelist for completion signatures
 template <class... _Sigs>
 struct _CCCL_TYPE_VISIBILITY_DEFAULT completion_signatures
 {
-  template <template <class...> class _Fn, template <class...> class _Continuation = __async::completion_signatures>
+  template <template <class...> class _Fn, template <class...> class _Continuation = __completion_signatures>
   using __transform_q _CCCL_NODEBUG_ALIAS = _Continuation<_CUDA_VSTD::__type_apply_q<_Fn, _Sigs>...>;
 
-  template <class _Fn, class _Continuation = _CUDA_VSTD::__type_quote<__async::completion_signatures>>
+  template <class _Fn, class _Continuation = _CUDA_VSTD::__type_quote<__completion_signatures>>
   using __transform _CCCL_NODEBUG_ALIAS = __transform_q<_Fn::template __call, _Continuation::template __call>;
 
   using __partitioned _CCCL_NODEBUG_ALIAS = __partition_completion_signatures_t<_Sigs...>;

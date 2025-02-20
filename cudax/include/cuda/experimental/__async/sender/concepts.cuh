@@ -86,18 +86,21 @@ _CCCL_CONCEPT __is_awaitable = false; // TODO: Implement this concept.
 
 // Sender traits:
 template <class _Sndr>
-inline constexpr bool enable_sender = //
-  [] {
-    if constexpr (__is_sender<_Sndr>)
-    {
-      return true;
-    }
-    else
-    {
-      return __is_awaitable<_Sndr>;
-    }
-    _CCCL_UNREACHABLE();
-  }();
+_CUDAX_API constexpr bool __enable_sender()
+{
+  if constexpr (__is_sender<_Sndr>)
+  {
+    return true;
+  }
+  else
+  {
+    return __is_awaitable<_Sndr>;
+  }
+  _CCCL_UNREACHABLE();
+}
+
+template <class _Sndr>
+inline constexpr bool enable_sender = __enable_sender<_Sndr>();
 
 // Sender concepts:
 template <class _Sndr>
