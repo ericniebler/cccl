@@ -407,20 +407,22 @@ _CUDAX_TRIVIAL_API _CUDAX_CONSTEVAL auto __get_completion_signatures_helper()
   }
 }
 
-template <class _Sndr>
+template <class _Sndr, class... _Env>
 _CUDAX_TRIVIAL_API _CUDAX_CONSTEVAL auto get_completion_signatures()
 {
-  return __async::__get_completion_signatures_helper<_Sndr>();
-}
-
-template <class _Sndr, class _Env>
-_CUDAX_TRIVIAL_API _CUDAX_CONSTEVAL auto get_completion_signatures()
-{
-  // BUGBUG TODO:
-  // Apply a lazy sender transform if one exists before computing the completion signatures:
-  // using _NewSndr = __transform_sender_result_t<__late_domain_of_t<_Sndr, _Env>, _Sndr, _Env>;
-  using _NewSndr = _Sndr;
-  return __async::__get_completion_signatures_helper<_NewSndr, _Env>();
+  static_assert(sizeof...(_Env) <= 1, "At most one environment is allowed.");
+  if constexpr (0 == sizeof...(_Env))
+  {
+    return __get_completion_signatures_helper<_Sndr>();
+  }
+  else
+  {
+    // BUGBUG TODO:
+    // Apply a lazy sender transform if one exists before computing the completion signatures:
+    // using _NewSndr = __transform_sender_result_t<__late_domain_of_t<_Sndr, _Env>, _Sndr, _Env>;
+    using _NewSndr = _Sndr;
+    return __get_completion_signatures_helper<_NewSndr, _Env...>();
+  }
 }
 
 // BUGBUG TODO
@@ -430,7 +432,7 @@ using _FWD_ENV_T = _Env;
 template <class _Parent, class _Child, class... _Env>
 constexpr auto get_child_completion_signatures()
 {
-  return __async::get_completion_signatures<__copy_cvref_t<_Parent, _Child>, _FWD_ENV_T<_Env>...>();
+  return get_completion_signatures<__copy_cvref_t<_Parent, _Child>, _FWD_ENV_T<_Env>...>();
 }
 
 #undef _CUDAX_GET_COMPLSIGS

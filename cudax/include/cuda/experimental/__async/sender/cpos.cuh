@@ -177,10 +177,7 @@ _CCCL_GLOBAL_CONSTANT struct start_t
 } start{};
 
 // get_completion_signatures
-template <class _Sndr>
-_CUDAX_TRIVIAL_API _CUDAX_CONSTEVAL auto get_completion_signatures();
-
-template <class _Sndr, class _Env>
+template <class _Sndr, class... _Env>
 _CUDAX_TRIVIAL_API _CUDAX_CONSTEVAL auto get_completion_signatures();
 
 // connect
@@ -209,7 +206,7 @@ template <class _Sndr, class _Rcvr>
 using connect_result_t = decltype(connect(declval<_Sndr>(), declval<_Rcvr>()));
 
 template <class _Sndr, class... _Env>
-using completion_signatures_of_t = decltype(__async::get_completion_signatures<_Sndr, _Env...>());
+using completion_signatures_of_t = decltype(get_completion_signatures<_Sndr, _Env...>());
 
 template <class _Sch>
 using schedule_result_t = decltype(schedule(declval<_Sch>()));

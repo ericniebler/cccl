@@ -103,6 +103,29 @@ template <class _Sndr>
 inline constexpr bool enable_sender = __enable_sender<_Sndr>();
 
 // Sender concepts:
+template <class... _Env>
+struct __completions_tester;
+
+template <>
+struct __completions_tester<>
+{
+  template <class _Sndr, bool EnableIfConstexpr = (get_completion_signatures<_Sndr>(), true)>
+  _CUDAX_API static constexpr auto __is_valid() -> bool
+  {
+    return __valid_completion_signatures<completion_signatures_of_t<_Sndr>>;
+  }
+};
+
+template <class _Env>
+struct __completions_tester<_Env>
+{
+  template <class _Sndr, bool EnableIfConstexpr = (get_completion_signatures<_Sndr, _Env>(), true)>
+  _CUDAX_API static constexpr auto __is_valid() -> bool
+  {
+    return __valid_completion_signatures<completion_signatures_of_t<_Sndr, _Env>>;
+  }
+};
+
 template <class _Sndr>
 _CCCL_CONCEPT sender =                                                          //
   _CCCL_REQUIRES_EXPR((_Sndr))                                                  //
@@ -113,15 +136,13 @@ _CCCL_CONCEPT sender =                                                          
   );
 
 template <class _Sndr, class... _Env>
-_CCCL_CONCEPT sender_in =                                                                                             //
-  _CCCL_REQUIRES_EXPR((_Sndr, variadic _Env))                                                                         //
-  (                                                                                                                   //
-    requires(sender<_Sndr>),                                                                                          //
-    requires(sizeof...(_Env) <= 1),                                                                                   //
-    requires((__queryable<_Env> && ...)),                                                                             //
-    requires(                                                                                                         //
-      _CUDA_VSTD::bool_constant<__async::__is_constexpr_helper(get_completion_signatures<_Sndr, _Env...>())>::value), //
-    requires(__valid_completion_signatures<decltype(get_completion_signatures<_Sndr, _Env...>())>)                    //
+_CCCL_CONCEPT sender_in =                                                 //
+  _CCCL_REQUIRES_EXPR((_Sndr, variadic _Env))                             //
+  (                                                                       //
+    requires(sender<_Sndr>),                                              //
+    requires(sizeof...(_Env) <= 1),                                       //
+    requires((__queryable<_Env> && ...)),                                 //
+    requires(__completions_tester<_Env...>::template __is_valid<_Sndr>()) //
   );
 
 template <class _Sndr>
