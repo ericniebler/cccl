@@ -410,7 +410,7 @@ _CUDAX_API constexpr auto when_all_t::__merge_completions(_Completions... __cs)
     {
       std::array<size_t, sizeof...(_Completions)> __offsets = {
         __value_types<_Completions, _CUDA_VSTD::__type_list, _CUDA_VSTD::__type_list_size>::value...};
-      (void) _CUDA_VSTD::exclusive_scan(__offsets.begin(), __offsets.end(), __offsets.begin(), 0ul);
+      (void) _CUDA_VSTD::exclusive_scan(__offsets.begin(), __offsets.end(), __offsets.begin(), std::size_t(0));
 
       // All child senders have exactly one value completion signature, each of
       // which may have multiple arguments. Concatenate all the arguments into a
