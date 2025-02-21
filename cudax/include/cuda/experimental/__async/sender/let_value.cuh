@@ -84,7 +84,7 @@ private:
   struct __opstate_fn
   {
     template <class... _As>
-    using __call = connect_result_t<__call_result_t<_Fn, __decay_t<_As>&...>, __rcvr_ref_t<_Rcvr&>>;
+    using __call = connect_result_t<__call_result_t<_Fn, __decay_t<_As>&...>, __rcvr_ref<_Rcvr>>;
   };
 
   /// @brief Computes the type of a variant of operation states to hold
@@ -105,14 +105,8 @@ private:
   template <class _Rcvr, class _CvSndr, class _Fn>
   struct _CCCL_TYPE_VISIBILITY_DEFAULT __opstate_t
   {
-    using __env_t = _FWD_ENV_T<env_of_t<_Rcvr>>;
-
-    _CUDAX_API friend auto get_env(const __opstate_t* __self) noexcept -> __env_t
-    {
-      return __async::get_env(__self->__rcvr_);
-    }
-
     using operation_state_concept = operation_state_t;
+    using __env_t = _FWD_ENV_T<env_of_t<_Rcvr>>;
 
     // Compute the type of the variant of operation states
     using __opstate_variant_t = __opstate2_t<_CvSndr, _Fn, _Rcvr>;
@@ -120,14 +114,14 @@ private:
     _Rcvr __rcvr_;
     _Fn __fn_;
     __results<_CvSndr, __env_t> __result_;
-    connect_result_t<_CvSndr, __opstate_t*> __opstate1_;
+    connect_result_t<_CvSndr, __rcvr_ref<__opstate_t>> __opstate1_;
     __opstate_variant_t __opstate2_;
 
     _CUDAX_API __opstate_t(_CvSndr&& __sndr, _Fn __fn, _Rcvr __rcvr) noexcept(
       __nothrow_decay_copyable<_Fn, _Rcvr> && __nothrow_connectable<_CvSndr, __opstate_t*>)
         : __rcvr_(static_cast<_Rcvr&&>(__rcvr))
         , __fn_(static_cast<_Fn&&>(__fn))
-        , __opstate1_(__async::connect(static_cast<_CvSndr&&>(__sndr), this))
+        , __opstate1_(__async::connect(static_cast<_CvSndr&&>(__sndr), __rcvr_ref{*this}))
     {}
 
     _CUDAX_API void start() noexcept
@@ -148,7 +142,7 @@ private:
             // Call the function with the results and connect the resulting
             // sender, storing the operation state in __opstate2_.
             auto& __next_op = __opstate2_.__emplace_from(
-              __async::connect, __tupl.__apply(static_cast<_Fn&&>(__fn_), __tupl), __async::__rcvr_ref(__rcvr_));
+              __async::connect, __tupl.__apply(static_cast<_Fn&&>(__fn_), __tupl), __rcvr_ref{__rcvr_});
             __async::start(__next_op);
           }),
           _CUDAX_CATCH(...) //
@@ -179,6 +173,11 @@ private:
     _CUDAX_TRIVIAL_API void set_stopped() noexcept
     {
       __complete(set_stopped_t());
+    }
+
+    _CUDAX_API auto get_env() const noexcept -> __env_t
+    {
+      return __async::get_env(__rcvr_);
     }
   };
 

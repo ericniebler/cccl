@@ -27,6 +27,7 @@
 #include <cuda/experimental/__async/sender/completion_signatures.cuh>
 #include <cuda/experimental/__async/sender/cpos.cuh>
 #include <cuda/experimental/__async/sender/exception.cuh>
+#include <cuda/experimental/__async/sender/rcvr_ref.cuh>
 #include <cuda/experimental/__async/sender/meta.cuh>
 #include <cuda/experimental/__async/sender/queries.cuh>
 #include <cuda/experimental/__async/sender/tuple.cuh>
@@ -125,19 +126,14 @@ private:
     using __result_t =
       typename completion_signatures_of_t<_CvSndr, __env_t>::template __transform_q<__decayed_tuple, __variant>;
 
-    _CUDAX_API friend auto get_env(const __opstate_t* __self) noexcept -> __env_t
-    {
-      return __async::get_env(__self->__rcvr_.__rcvr);
-    }
-
     __rcvr_t<_Rcvr, __result_t> __rcvr_;
-    connect_result_t<_CvSndr, __opstate_t*> __opstate1_;
-    connect_result_t<schedule_result_t<_Sch>, __rcvr_t<_Rcvr, __result_t>*> __opstate2_;
+    connect_result_t<_CvSndr, __rcvr_ref<__opstate_t>> __opstate1_;
+    connect_result_t<schedule_result_t<_Sch>, __rcvr_ref<__rcvr_t<_Rcvr, __result_t>>> __opstate2_;
 
     _CUDAX_API __opstate_t(_CvSndr&& __sndr, _Sch __sch, _Rcvr __rcvr)
         : __rcvr_{static_cast<_Rcvr&&>(__rcvr), {}, nullptr}
-        , __opstate1_{__async::connect(static_cast<_CvSndr&&>(__sndr), this)}
-        , __opstate2_{__async::connect(schedule(__sch), &__rcvr_)}
+        , __opstate1_{__async::connect(static_cast<_CvSndr&&>(__sndr), __rcvr_ref{*this})}
+        , __opstate2_{__async::connect(schedule(__sch), __rcvr_ref{__rcvr_})}
     {}
 
     _CUDAX_IMMOVABLE(__opstate_t);
@@ -165,6 +161,11 @@ private:
     {
       __rcvr_.__set_result(set_stopped_t());
       __async::start(__opstate2_);
+    }
+
+    _CUDAX_API auto get_env() const noexcept -> __env_t
+    {
+      return __async::get_env(__rcvr_.__rcvr);
     }
   };
 
@@ -227,20 +228,20 @@ struct _CCCL_TYPE_VISIBILITY_DEFAULT continue_on_t::__sndr_t
 
   struct _CCCL_TYPE_VISIBILITY_DEFAULT __attrs_t
   {
-    __sndr_t* __sndr;
-
     template <class _SetTag>
     _CUDAX_API auto query(get_completion_scheduler_t<_SetTag>) const noexcept
     {
-      return __sndr->__sch;
+      return __sndr_->__sch;
     }
 
     template <class _Query>
     _CUDAX_API auto query(_Query) const //
       -> __query_result_t<_Query, env_of_t<_Sndr>>
     {
-      return __async::get_env(__sndr->__sndr).query(_Query{});
+      return __async::get_env(__sndr_->__sndr).query(_Query{});
     }
+
+    const __sndr_t* __sndr_;
   };
 
   template <class _Self, class... _Env>

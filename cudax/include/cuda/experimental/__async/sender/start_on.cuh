@@ -25,6 +25,7 @@
 
 #include <cuda/experimental/__async/sender/completion_signatures.cuh>
 #include <cuda/experimental/__async/sender/cpos.cuh>
+#include <cuda/experimental/__async/sender/rcvr_ref.cuh>
 #include <cuda/experimental/__async/sender/queries.cuh>
 #include <cuda/experimental/__async/sender/rcvr_with_env.cuh>
 #include <cuda/experimental/__async/sender/tuple.cuh>
@@ -56,21 +57,16 @@ private:
   template <class _Rcvr, class _Sch, class _CvSndr>
   struct _CCCL_TYPE_VISIBILITY_DEFAULT __opstate_t
   {
-    _CUDAX_API friend env_of_t<_Rcvr> get_env(const __opstate_t* __self) noexcept
-    {
-      return __async::get_env(__self->__env_rcvr_.__rcvr());
-    }
-
     using operation_state_concept = operation_state_t;
 
     __rcvr_with_env_t<_Rcvr, __sch_env_t<_Sch>> __env_rcvr_;
-    connect_result_t<schedule_result_t<_Sch>, __opstate_t*> __opstate1_;
-    connect_result_t<_CvSndr, __rcvr_with_env_t<_Rcvr, __sch_env_t<_Sch>>*> __opstate2_;
+    connect_result_t<schedule_result_t<_Sch>, __rcvr_ref<__opstate_t>> __opstate1_;
+    connect_result_t<_CvSndr, __rcvr_ref<__rcvr_with_env_t<_Rcvr, __sch_env_t<_Sch>>>> __opstate2_;
 
     _CUDAX_API __opstate_t(_Sch __sch, _Rcvr __rcvr, _CvSndr&& __sndr)
         : __env_rcvr_{static_cast<_Rcvr&&>(__rcvr), {__sch}}
-        , __opstate1_{connect(schedule(__env_rcvr_.__env_.__sch_), this)}
-        , __opstate2_{connect(static_cast<_CvSndr&&>(__sndr), &__env_rcvr_)}
+        , __opstate1_{connect(schedule(__env_rcvr_.__env_.__sch_), __rcvr_ref{*this})}
+        , __opstate2_{connect(static_cast<_CvSndr&&>(__sndr), __rcvr_ref{__env_rcvr_})}
     {}
 
     _CUDAX_IMMOVABLE(__opstate_t);
@@ -94,6 +90,11 @@ private:
     _CUDAX_API void set_stopped() noexcept
     {
       __async::set_stopped(static_cast<_Rcvr&&>(__env_rcvr_.__rcvr()));
+    }
+
+    _CUDAX_API auto get_env() const noexcept -> env_of_t<_Rcvr>
+    {
+      return __async::get_env(__env_rcvr_.__rcvr());
     }
   };
 

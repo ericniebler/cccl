@@ -25,6 +25,7 @@
 #include <cuda/experimental/__async/sender/cpos.cuh>
 #include <cuda/experimental/__async/sender/env.cuh>
 #include <cuda/experimental/__async/sender/exception.cuh>
+#include <cuda/experimental/__async/sender/rcvr_ref.cuh>
 #include <cuda/experimental/__async/sender/queries.cuh>
 #include <cuda/experimental/__async/sender/rcvr_with_env.cuh>
 #include <cuda/experimental/__async/sender/utility.cuh>
@@ -47,11 +48,11 @@ private:
     using operation_state_concept = operation_state_t;
 
     __rcvr_with_env_t<_Rcvr, _Env> __env_rcvr_;
-    connect_result_t<_Sndr, __rcvr_with_env_t<_Rcvr, _Env>*> __opstate_;
+    connect_result_t<_Sndr, __rcvr_ref<__rcvr_with_env_t<_Rcvr, _Env>>> __opstate_;
 
     _CUDAX_API explicit __opstate_t(_Sndr&& __sndr, _Env __env, _Rcvr __rcvr)
         : __env_rcvr_{static_cast<_Rcvr&&>(__rcvr), static_cast<_Env&&>(__env)}
-        , __opstate_(__async::connect(static_cast<_Sndr&&>(__sndr), &__env_rcvr_))
+        , __opstate_(__async::connect(static_cast<_Sndr&&>(__sndr), __rcvr_ref{__env_rcvr_}))
     {}
 
     _CUDAX_IMMOVABLE(__opstate_t);

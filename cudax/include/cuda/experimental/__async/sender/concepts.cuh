@@ -25,6 +25,7 @@
 #include <cuda/std/__concepts/concept_macros.h>
 #include <cuda/std/__concepts/constructible.h>
 #include <cuda/std/__type_traits/decay.h>
+#include <cuda/std/__type_traits/fold.h>
 #include <cuda/std/__type_traits/integral_constant.h>
 #include <cuda/std/__type_traits/is_callable.h>
 #include <cuda/std/__type_traits/is_move_constructible.h>
@@ -110,9 +111,15 @@ template <>
 struct __completions_tester<>
 {
   template <class _Sndr, bool EnableIfConstexpr = (get_completion_signatures<_Sndr>(), true)>
-  _CUDAX_API static constexpr auto __is_valid() -> bool
+  _CUDAX_API static constexpr auto __is_valid(int) -> bool
   {
     return __valid_completion_signatures<completion_signatures_of_t<_Sndr>>;
+  }
+
+  template <class _Sndr>
+  _CUDAX_API static constexpr auto __is_valid(long) -> bool
+  {
+    return false;
   }
 };
 
@@ -120,9 +127,15 @@ template <class _Env>
 struct __completions_tester<_Env>
 {
   template <class _Sndr, bool EnableIfConstexpr = (get_completion_signatures<_Sndr, _Env>(), true)>
-  _CUDAX_API static constexpr auto __is_valid() -> bool
+  _CUDAX_API static constexpr auto __is_valid(int) -> bool
   {
     return __valid_completion_signatures<completion_signatures_of_t<_Sndr, _Env>>;
+  }
+
+  template <class _Sndr>
+  _CUDAX_API static constexpr auto __is_valid(long) -> bool
+  {
+    return false;
   }
 };
 
@@ -141,8 +154,8 @@ _CCCL_CONCEPT sender_in =                                                 //
   (                                                                       //
     requires(sender<_Sndr>),                                              //
     requires(sizeof...(_Env) <= 1),                                       //
-    requires((__queryable<_Env> && ...)),                                 //
-    requires(__completions_tester<_Env...>::template __is_valid<_Sndr>()) //
+    requires(_CUDA_VSTD::__fold_and_v<__queryable<_Env>...>),                                 //
+    requires(__completions_tester<_Env...>::template __is_valid<_Sndr>(0)) //
   );
 
 template <class _Sndr>

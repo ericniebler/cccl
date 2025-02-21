@@ -28,6 +28,7 @@
 
 #include <cuda/experimental/__async/sender/completion_signatures.cuh>
 #include <cuda/experimental/__async/sender/concepts.cuh>
+#include <cuda/experimental/__async/sender/rcvr_ref.cuh>
 #include <cuda/experimental/__async/sender/just_from.cuh>
 #include <cuda/experimental/__async/sender/meta.cuh>
 #include <cuda/experimental/__async/sender/type_traits.cuh>
@@ -111,16 +112,11 @@ struct __cond_t
     using __data_t                = __data<_Pred, _Then, _Else>;
     using __env_t                 = _FWD_ENV_T<env_of_t<_Rcvr>>;
 
-    _CUDAX_API friend __env_t get_env(const __opstate* __self) noexcept
-    {
-      return get_env(__self->__rcvr_);
-    }
-
     template <class... _As>
     using __opstate_t =        //
       _CUDA_VSTD::__type_list< //
-        connect_result_t<__call_result_t<_Then, __just_from_t<_As...>>, __rcvr_ref_t<_Rcvr&>>,
-        connect_result_t<__call_result_t<_Else, __just_from_t<_As...>>, __rcvr_ref_t<_Rcvr&>>>;
+        connect_result_t<__call_result_t<_Then, __just_from_t<_As...>>, __rcvr_ref<_Rcvr>>,
+        connect_result_t<__call_result_t<_Else, __just_from_t<_As...>>, __rcvr_ref<_Rcvr>>>;
 
     using __next_ops_variant_t = //
       __value_types<completion_signatures_of_t<_Sndr, __env_t>, __opstate_t, __type_concat_into_quote<__variant>::__call>;
@@ -128,7 +124,7 @@ struct __cond_t
     _CUDAX_API __opstate(_Sndr&& __sndr, _Rcvr&& __rcvr, __data_t&& __data)
         : __rcvr_{static_cast<_Rcvr&&>(__rcvr)}
         , __data_{static_cast<__data_t&&>(__data)}
-        , __op_{__async::connect(static_cast<_Sndr&&>(__sndr), this)}
+        , __op_{__async::connect(static_cast<_Sndr&&>(__sndr), __rcvr_ref{*this})}
     {}
 
     _CUDAX_API void start() noexcept
@@ -145,13 +141,13 @@ struct __cond_t
           if (static_cast<_Pred&&>(__data_.__pred_)(__as...))
           {
             auto& __op =
-              __ops_.__emplace_from(connect, static_cast<_Then&&>(__data_.__then_)(__just), __rcvr_ref(__rcvr_));
+              __ops_.__emplace_from(connect, static_cast<_Then&&>(__data_.__then_)(__just), __rcvr_ref{__rcvr_});
             __async::start(__op);
           }
           else
           {
             auto& __op =
-              __ops_.__emplace_from(connect, static_cast<_Else&&>(__data_.__else_)(__just), __rcvr_ref(__rcvr_));
+              __ops_.__emplace_from(connect, static_cast<_Else&&>(__data_.__else_)(__just), __rcvr_ref{__rcvr_});
             __async::start(__op);
           }
         }),
@@ -173,9 +169,14 @@ struct __cond_t
       __async::set_stopped(static_cast<_Rcvr&&>(__rcvr_));
     }
 
+    _CUDAX_API auto get_env() const noexcept -> __env_t
+    {
+      return get_env(__rcvr_);
+    }
+
     _Rcvr __rcvr_;
     __data_t __data_;
-    connect_result_t<_Sndr, __opstate*> __op_;
+    connect_result_t<_Sndr, __rcvr_ref<__opstate>> __op_;
     __next_ops_variant_t __ops_;
   };
 

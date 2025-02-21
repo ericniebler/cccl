@@ -108,16 +108,6 @@ _CCCL_GLOBAL_CONSTANT struct set_value_t : __completion_tag<__value>
     static_assert(noexcept(static_cast<_Rcvr&&>(__rcvr).set_value(static_cast<_Ts&&>(__ts)...)));
     static_cast<_Rcvr&&>(__rcvr).set_value(static_cast<_Ts&&>(__ts)...);
   }
-
-  template <class _Rcvr, class... _Ts>
-  _CUDAX_TRIVIAL_API auto operator()(_Rcvr* __rcvr, _Ts&&... __ts) const noexcept
-    -> decltype(static_cast<_Rcvr&&>(*__rcvr).set_value(static_cast<_Ts&&>(__ts)...))
-  {
-    static_assert(
-      _CUDA_VSTD::is_same_v<decltype(static_cast<_Rcvr&&>(*__rcvr).set_value(static_cast<_Ts&&>(__ts)...)), void>);
-    static_assert(noexcept(static_cast<_Rcvr&&>(*__rcvr).set_value(static_cast<_Ts&&>(__ts)...)));
-    static_cast<_Rcvr&&>(*__rcvr).set_value(static_cast<_Ts&&>(__ts)...);
-  }
 } set_value{};
 
 _CCCL_GLOBAL_CONSTANT struct set_error_t : __completion_tag<__error>
@@ -131,16 +121,6 @@ _CCCL_GLOBAL_CONSTANT struct set_error_t : __completion_tag<__error>
     static_assert(noexcept(static_cast<_Rcvr&&>(__rcvr).set_error(static_cast<_Ey&&>(__e))));
     static_cast<_Rcvr&&>(__rcvr).set_error(static_cast<_Ey&&>(__e));
   }
-
-  template <class _Rcvr, class _Ey>
-  _CUDAX_TRIVIAL_API auto operator()(_Rcvr* __rcvr, _Ey&& __e) const noexcept
-    -> decltype(static_cast<_Rcvr&&>(*__rcvr).set_error(static_cast<_Ey&&>(__e)))
-  {
-    static_assert(
-      _CUDA_VSTD::is_same_v<decltype(static_cast<_Rcvr&&>(*__rcvr).set_error(static_cast<_Ey&&>(__e))), void>);
-    static_assert(noexcept(static_cast<_Rcvr&&>(*__rcvr).set_error(static_cast<_Ey&&>(__e))));
-    static_cast<_Rcvr&&>(*__rcvr).set_error(static_cast<_Ey&&>(__e));
-  }
 } set_error{};
 
 _CCCL_GLOBAL_CONSTANT struct set_stopped_t : __completion_tag<__stopped>
@@ -152,15 +132,6 @@ _CCCL_GLOBAL_CONSTANT struct set_stopped_t : __completion_tag<__stopped>
     static_assert(_CUDA_VSTD::is_same_v<decltype(static_cast<_Rcvr&&>(__rcvr).set_stopped()), void>);
     static_assert(noexcept(static_cast<_Rcvr&&>(__rcvr).set_stopped()));
     static_cast<_Rcvr&&>(__rcvr).set_stopped();
-  }
-
-  template <class _Rcvr>
-  _CUDAX_TRIVIAL_API auto operator()(_Rcvr* __rcvr) const noexcept
-    -> decltype(static_cast<_Rcvr&&>(*__rcvr).set_stopped())
-  {
-    static_assert(_CUDA_VSTD::is_same_v<decltype(static_cast<_Rcvr&&>(*__rcvr).set_stopped()), void>);
-    static_assert(noexcept(static_cast<_Rcvr&&>(*__rcvr).set_stopped()));
-    static_cast<_Rcvr&&>(*__rcvr).set_stopped();
   }
 } set_stopped{};
 

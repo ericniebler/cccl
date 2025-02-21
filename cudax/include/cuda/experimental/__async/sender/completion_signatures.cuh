@@ -86,12 +86,6 @@ struct __concat_completion_signatures_fn
     -> __concat_completion_signatures_t<_Sigs...>;
 };
 
-#if defined(__CUDA_ARCH__)
-extern _CCCL_DEVICE const __concat_completion_signatures_fn concat_completion_signatures;
-#else
-extern const __concat_completion_signatures_fn concat_completion_signatures;
-#endif
-
 #if defined(__cpp_constexpr_exceptions) // C++26, https://wg21.link/p3068
 template <class... What, class... Values>
 [[noreturn, nodiscard]] constexpr completion_signatures<> invalid_completion_signature(Values... values);
@@ -130,19 +124,19 @@ struct _CCCL_TYPE_VISIBILITY_DEFAULT completion_signatures
   constexpr completion_signatures() = default;
 
   template <class _Tag>
-  _CUDAX_API static constexpr auto count(_Tag) noexcept -> size_t;
+  _CUDAX_API constexpr auto count(_Tag) const noexcept -> size_t;
 
   template <class _Fn>
-  _CUDAX_API static constexpr auto apply(_Fn) -> _CUDA_VSTD::__call_result_t<_Fn, _Sigs*...>;
+  _CUDAX_API constexpr auto apply(_Fn) const -> _CUDA_VSTD::__call_result_t<_Fn, _Sigs*...>;
 
   template <class _Fn>
-  _CUDAX_API static constexpr auto filter(_Fn) -> __concat_completion_signatures_t<__completion_if<_Fn, _Sigs>...>;
+  _CUDAX_API constexpr auto filter(_Fn) const -> __concat_completion_signatures_t<__completion_if<_Fn, _Sigs>...>;
 
   template <class _Tag>
-  _CUDAX_API static constexpr auto select(_Tag) noexcept;
+  _CUDAX_API constexpr auto select(_Tag) const noexcept;
 
   template <class _Transform, class _Reduce>
-  _CUDAX_API static constexpr auto transform_reduce(_Transform, _Reduce)
+  _CUDAX_API constexpr auto transform_reduce(_Transform, _Reduce) const
     -> _CUDA_VSTD::__call_result_t<_Reduce, _CUDA_VSTD::__call_result_t<_Transform, _Sigs*>...>;
 
   template <class... _OtherSigs>
@@ -151,7 +145,7 @@ struct _CCCL_TYPE_VISIBILITY_DEFAULT completion_signatures
 
 template <class... _Sigs>
 template <class _Tag>
-_CUDAX_API constexpr size_t completion_signatures<_Sigs...>::count(_Tag) noexcept
+_CUDAX_API constexpr size_t completion_signatures<_Sigs...>::count(_Tag) const noexcept
 {
   if constexpr (_Tag() == set_value)
   {
@@ -171,7 +165,7 @@ completion_signatures() -> completion_signatures<>;
 
 template <class... _Sigs>
 template <class _Fn>
-_CUDAX_API constexpr auto completion_signatures<_Sigs...>::apply(_Fn __fn)
+_CUDAX_API constexpr auto completion_signatures<_Sigs...>::apply(_Fn __fn) const
   -> _CUDA_VSTD::__call_result_t<_Fn, _Sigs*...>
 {
   return __fn(static_cast<_Sigs*>(nullptr)...);
@@ -189,7 +183,7 @@ _CUDAX_API constexpr auto __filer_one(_Fn __fn, _Sig* __sig) -> __completion_if<
 
 template <class... _Sigs>
 template <class _Fn>
-_CUDAX_API constexpr auto completion_signatures<_Sigs...>::filter(_Fn __fn)
+_CUDAX_API constexpr auto completion_signatures<_Sigs...>::filter(_Fn __fn) const
   -> __concat_completion_signatures_t<__completion_if<_Fn, _Sigs>...>
 {
   return concat_completion_signatures(__async::__filer_one(__fn, static_cast<_Sigs*>(nullptr))...);
@@ -197,7 +191,7 @@ _CUDAX_API constexpr auto completion_signatures<_Sigs...>::filter(_Fn __fn)
 
 template <class... _Sigs>
 template <class _Tag>
-_CUDAX_API constexpr auto completion_signatures<_Sigs...>::select(_Tag) noexcept
+_CUDAX_API constexpr auto completion_signatures<_Sigs...>::select(_Tag) const noexcept
 {
   if constexpr (_Tag() == set_value)
   {
@@ -215,7 +209,7 @@ _CUDAX_API constexpr auto completion_signatures<_Sigs...>::select(_Tag) noexcept
 
 template <class... _Sigs>
 template <class _Transform, class _Reduce>
-_CUDAX_API constexpr auto completion_signatures<_Sigs...>::transform_reduce(_Transform __transform, _Reduce __reduce)
+_CUDAX_API constexpr auto completion_signatures<_Sigs...>::transform_reduce(_Transform __transform, _Reduce __reduce) const
   -> _CUDA_VSTD::__call_result_t<_Reduce, _CUDA_VSTD::__call_result_t<_Transform, _Sigs*>...>
 {
   return __reduce(__transform(static_cast<_Sigs*>(nullptr))...);
@@ -334,7 +328,7 @@ _CCCL_DIAG_SUPPRESS_MSVC(4913)
 #define _CUDAX_GET_COMPLSIGS(...) \
   _CUDA_VSTD::remove_reference_t<_Sndr>::template get_completion_signatures<__VA_ARGS__>()
 
-#define _CUDAX_CHECKED_COMPLSIGS(...) (__VA_ARGS__, __async::__checked_complsigs<decltype(__VA_ARGS__)>())
+#define _CUDAX_CHECKED_COMPLSIGS(...) (__VA_ARGS__, void(), __async::__checked_complsigs<decltype(__VA_ARGS__)>())
 
 struct _A_GET_COMPLETION_SIGNATURES_CUSTOMIZATION_RETURNED_A_TYPE_THAT_IS_NOT_A_COMPLETION_SIGNATURES_SPECIALIZATION
 {};
@@ -639,7 +633,7 @@ _CUDAX_TRIVIAL_API constexpr auto __concat_completion_signatures_fn::operator()(
   return {};
 }
 
-_CCCL_GLOBAL_CONSTANT __concat_completion_signatures_fn concat_completion_signatures{};
+_CCCL_GLOBAL_CONSTANT __concat_completion_signatures_fn concat_completion_signatures;
 
 template <class... _Sigs>
 template <class... _OtherSigs>

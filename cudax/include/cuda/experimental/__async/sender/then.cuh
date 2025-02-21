@@ -30,6 +30,7 @@
 #include <cuda/experimental/__async/sender/concepts.cuh>
 #include <cuda/experimental/__async/sender/cpos.cuh>
 #include <cuda/experimental/__async/sender/exception.cuh>
+#include <cuda/experimental/__async/sender/rcvr_ref.cuh>
 #include <cuda/experimental/__async/sender/meta.cuh>
 #include <cuda/experimental/__async/sender/tuple.cuh>
 #include <cuda/experimental/__async/sender/utility.cuh>
@@ -108,21 +109,21 @@ private:
   template <class _Rcvr, class _CvSndr, class _Fn>
   struct _CCCL_TYPE_VISIBILITY_DEFAULT __opstate_t
   {
-    _CUDAX_API friend env_of_t<_Rcvr> get_env(const __opstate_t* __self) noexcept
+    _CUDAX_API auto get_env() const noexcept -> env_of_t<_Rcvr>
     {
-      return __async::get_env(__self->__rcvr_);
+      return __async::get_env(__rcvr_);
     }
 
     using operation_state_concept = operation_state_t;
 
     _Rcvr __rcvr_;
     _Fn __fn_;
-    connect_result_t<_CvSndr, __opstate_t*> __opstate_;
+    connect_result_t<_CvSndr, __rcvr_ref<__opstate_t>> __opstate_;
 
     _CUDAX_API __opstate_t(_CvSndr&& __sndr, _Rcvr __rcvr, _Fn __fn)
         : __rcvr_{static_cast<_Rcvr&&>(__rcvr)}
         , __fn_{static_cast<_Fn&&>(__fn)}
-        , __opstate_{__async::connect(static_cast<_CvSndr&&>(__sndr), this)}
+        , __opstate_{__async::connect(static_cast<_CvSndr&&>(__sndr), __rcvr_ref{*this})}
     {}
 
     _CUDAX_IMMOVABLE(__opstate_t);
