@@ -71,7 +71,7 @@ private:
   using __error_t =
     _ERROR<_WHERE(_IN_ALGORITHM, _JustTag), _WHAT(__diag_t), _WITH_COMPLETION_SIGNATURE<_SetTag(_Ts...)>>;
 
-  struct __probe_fn
+  struct _CCCL_TYPE_VISIBILITY_DEFAULT __probe_fn
   {
     template <class... _Ts>
     auto operator()(_Ts&&... __ts) const noexcept
@@ -81,7 +81,7 @@ private:
   };
 
   template <class _Rcvr>
-  struct __complete_fn
+  struct _CCCL_TYPE_VISIBILITY_DEFAULT __complete_fn
   {
     _Rcvr& __rcvr_;
 
@@ -93,7 +93,7 @@ private:
   };
 
   template <class _Rcvr, class _Fn>
-  struct __opstate
+  struct _CCCL_TYPE_VISIBILITY_DEFAULT __opstate_t
   {
     using operation_state_concept = operation_state_t;
 
@@ -130,17 +130,17 @@ struct _CCCL_TYPE_VISIBILITY_DEFAULT __just_from_t<_Disposition>::__sndr_t
   }
 
   template <class _Rcvr>
-  _CUDAX_API __opstate<_Rcvr, _Fn> connect(_Rcvr __rcvr) && //
+  _CUDAX_API __opstate_t<_Rcvr, _Fn> connect(_Rcvr __rcvr) && //
     noexcept(__nothrow_decay_copyable<_Rcvr, _Fn>)
   {
-    return __opstate<_Rcvr, _Fn>{static_cast<_Rcvr&&>(__rcvr), static_cast<_Fn&&>(__fn_)};
+    return __opstate_t<_Rcvr, _Fn>{static_cast<_Rcvr&&>(__rcvr), static_cast<_Fn&&>(__fn_)};
   }
 
   template <class _Rcvr>
-  _CUDAX_API __opstate<_Rcvr, _Fn> connect(_Rcvr __rcvr) const& //
+  _CUDAX_API __opstate_t<_Rcvr, _Fn> connect(_Rcvr __rcvr) const& //
     noexcept(__nothrow_decay_copyable<_Rcvr, _Fn const&>)
   {
-    return __opstate<_Rcvr, _Fn>{static_cast<_Rcvr&&>(__rcvr), __fn_};
+    return __opstate_t<_Rcvr, _Fn>{static_cast<_Rcvr&&>(__rcvr), __fn_};
   }
 };
 

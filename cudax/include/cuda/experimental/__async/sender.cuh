@@ -28,6 +28,7 @@
 #include <cuda/experimental/__async/sender/conditional.cuh>    // IWYU pragma: export
 #include <cuda/experimental/__async/sender/continue_on.cuh>    // IWYU pragma: export
 #include <cuda/experimental/__async/sender/cpos.cuh>           // IWYU pragma: export
+#include <cuda/experimental/__async/sender/domain.cuh>         // IWYU pragma: export
 #include <cuda/experimental/__async/sender/just.cuh>           // IWYU pragma: export
 #include <cuda/experimental/__async/sender/just_from.cuh>      // IWYU pragma: export
 #include <cuda/experimental/__async/sender/let_value.cuh>      // IWYU pragma: export
@@ -38,6 +39,7 @@
 #include <cuda/experimental/__async/sender/start_detached.cuh> // IWYU pragma: export
 #include <cuda/experimental/__async/sender/start_on.cuh>       // IWYU pragma: export
 #include <cuda/experimental/__async/sender/stop_token.cuh>     // IWYU pragma: export
+#include <cuda/experimental/__async/sender/stream_context.cuh> // IWYU pragma: export
 #include <cuda/experimental/__async/sender/sync_wait.cuh>      // IWYU pragma: export
 #include <cuda/experimental/__async/sender/then.cuh>           // IWYU pragma: export
 #include <cuda/experimental/__async/sender/thread_context.cuh> // IWYU pragma: export
