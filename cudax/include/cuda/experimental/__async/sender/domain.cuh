@@ -26,7 +26,10 @@
 namespace cuda::experimental::__async
 {
 struct _CCCL_TYPE_VISIBILITY_DEFAULT default_domain
-{};
+{
+  template <class _Tag, auto const& _Apply = _Tag::__apply>
+  static constexpr auto __apply = _Apply;
+};
 } // namespace cuda::experimental::__async
 
 #include <cuda/experimental/__async/sender/epilogue.cuh>

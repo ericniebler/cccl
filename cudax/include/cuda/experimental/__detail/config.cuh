@@ -63,6 +63,13 @@
 #  define _CUDAX_CONSTEVAL consteval
 #endif
 
+// We need to treat host and device separately
+#if defined(__CUDA_ARCH__)
+#  define _CUDAX_GLOBAL_CONSTANT_FWD_DECL extern _CCCL_DEVICE const
+#else // ^^^ __CUDA_ARCH__ ^^^ / vvv !__CUDA_ARCH__ vvv
+#  define _CUDAX_GLOBAL_CONSTANT_FWD_DECL extern const
+#endif // __CUDA_ARCH__
+
 namespace cuda::experimental
 {
 namespace __cudax = ::cuda::experimental; // NOLINT: misc-unused-alias-decls

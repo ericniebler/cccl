@@ -460,7 +460,7 @@ template <class _Env>
 using _FWD_ENV_T = _Env;
 
 template <class _Parent, class _Child, class... _Env>
-constexpr auto get_child_completion_signatures()
+_CUDAX_TRIVIAL_API _CUDAX_CONSTEVAL auto get_child_completion_signatures()
 {
   return get_completion_signatures<__copy_cvref_t<_Parent, _Child>, _FWD_ENV_T<_Env>...>();
 }

@@ -27,6 +27,7 @@
 #include <cuda/std/initializer_list>
 
 #include <cuda/experimental/__async/sender/meta.cuh>
+#include <cuda/experimental/__async/sender/tuple.cuh>
 #include <cuda/experimental/__async/sender/type_traits.cuh>
 #include <cuda/experimental/__detail/config.cuh>
 
@@ -118,6 +119,47 @@ _CUDAX_API constexpr _CUDA_VSTD::decay_t<_Ty> __decay_copy(_Ty&& __ty) noexcept(
 {
   return static_cast<_Ty&&>(__ty);
 }
+
+template <class... _Fns>
+struct __overload_set : _Fns...
+{
+  using _Fns::operator()...;
+};
+
+template <class... _Fns>
+__overload_set(_Fns...) -> __overload_set<_Fns...>;
+
+template <class... _Fns>
+struct __1st_overload
+{
+  __tuple<_Fns...> __fns_;
+
+  template <class... _Args>
+  _CUDAX_TRIVIAL_API static constexpr decltype(auto) __get_1st(const __1st_overload& __self) noexcept
+  {
+    // NOLINTNEXTLINE (modernize-avoid-c-arrays)
+    constexpr bool __flags[] = {__callable<_Fns, _Args...>..., false};
+    constexpr size_t __idx   = __async::__find_pos(__flags, __flags + sizeof...(_Fns));
+    if constexpr (__idx != __npos)
+    {
+      return __async::__cget<__idx>(__self.__fns_);
+    }
+  }
+
+  template <class... _Args>
+  using __1st_fn_t = decltype(__1st_overload::__get_1st<_Args...>(declval<const __1st_overload&>()));
+
+  _CCCL_TEMPLATE(class... _Args)
+  _CCCL_REQUIRES(__callable<__1st_fn_t<_Args...>, _Args...>)
+  _CUDAX_TRIVIAL_API constexpr auto operator()(_Args... __args) const
+    noexcept(__nothrow_callable<__1st_fn_t<_Args...>, _Args...>) -> __call_result_t<__1st_fn_t<_Args...>, _Args...>
+  {
+    return __1st_overload::__get_1st<_Args...>(*this).query(__args...);
+  }
+};
+
+template <class... _Fns>
+__1st_overload(_Fns...) -> __1st_overload<_Fns...>;
 
 _CCCL_DIAG_PUSH
 _CCCL_DIAG_SUPPRESS_GCC("-Wnon-template-friend")

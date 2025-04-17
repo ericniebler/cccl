@@ -23,6 +23,7 @@
 
 #include <cuda/std/__functional/reference_wrapper.h>
 
+#include <cuda/experimental/__async/sender/fwd.cuh>
 #include <cuda/experimental/__async/sender/meta.cuh>
 #include <cuda/experimental/__async/sender/queries.cuh>
 #include <cuda/experimental/__async/sender/tuple.cuh>
@@ -167,15 +168,31 @@ struct get_env_t
   }
 };
 
-namespace __region
-{
 _CCCL_GLOBAL_CONSTANT get_env_t get_env{};
-} // namespace __region
 
-using namespace __region;
+struct __not_a_scheduler
+{
+  using scheduler_concept = scheduler_t;
+};
 
-template <class _Ty>
-using env_of_t = decltype(__async::get_env(declval<_Ty>()));
+using __no_completion_scheduler_t = prop<get_completion_scheduler_t<set_value_t>, __not_a_scheduler>;
+using __no_scheduler_t            = prop<get_scheduler_t, __not_a_scheduler>;
+
+// First look in the sender's environment for a domain. If none is found, look in the
+// sender's (value) completion scheduler, if any.
+template <class _Sndr>
+using __early_domain_env =
+  env<env_of_t<_Sndr>, __completion_scheduler_of_t<env<env_of_t<_Sndr>, __no_completion_scheduler_t>>>;
+
+template <class _Sndr>
+using early_domain_of_t = __domain_of_t<__early_domain_env<_Sndr>>;
+
+template <class _Sndr, class _Env>
+using __late_domain_env = env<__early_domain_env<_Sndr>, env<_Env, __scheduler_of_t<env<_Env, __no_scheduler_t>>>>;
+
+template <class _Sndr, class _Env>
+using late_domain_of_t = __domain_of_t<__late_domain_env<_Sndr, _Env>>;
+
 } // namespace cuda::experimental::__async
 
 _CCCL_NV_DIAG_DEFAULT(20012)

@@ -127,10 +127,8 @@ public:
 
   class __scheduler
   {
-    struct __schedule_task
+    struct __sndr_t
     {
-      using __t            = __schedule_task;
-      using __id           = __schedule_task;
       using sender_concept = sender_t;
 
       template <class _Rcvr>
@@ -144,9 +142,6 @@ public:
       {
         return completion_signatures<set_value_t(), set_error_t(::std::exception_ptr), set_stopped_t()>();
       }
-
-    private:
-      friend __scheduler;
 
       struct __env
       {
@@ -164,7 +159,9 @@ public:
         return __env{__loop_};
       }
 
-      _CUDAX_API explicit __schedule_task(run_loop* __loop) noexcept
+    private:
+      friend class __scheduler;
+      _CUDAX_API explicit __sndr_t(run_loop* __loop) noexcept
           : __loop_(__loop)
       {}
 
@@ -187,9 +184,9 @@ public:
   public:
     using scheduler_concept = scheduler_t;
 
-    [[nodiscard]] _CUDAX_API auto schedule() const noexcept -> __schedule_task
+    [[nodiscard]] _CUDAX_API auto schedule() const noexcept -> __sndr_t
     {
-      return __schedule_task{__loop_};
+      return __sndr_t{__loop_};
     }
 
     _CUDAX_API friend bool operator==(const __scheduler& __a, const __scheduler& __b) noexcept
