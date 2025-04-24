@@ -134,7 +134,7 @@ struct __transfer_sndr_t
 
 struct _CCCL_TYPE_VISIBILITY_DEFAULT schedule_from_t
 {
-private:
+  _CUDAX_SEMI_PRIVATE :
   template <class... _As>
   using __set_value_tuple_t _CCCL_NODEBUG_ALIAS = _CUDA_VSTD::__tuple<set_value_t, __decay_t<_As>...>;
 
