@@ -21,6 +21,8 @@
 #  pragma system_header
 #endif // no system header
 
+#include <cuda/std/__memory/addressof.h>
+
 #include <cuda/experimental/__execution/cpos.cuh>
 #include <cuda/experimental/__execution/env.cuh>
 
@@ -32,36 +34,40 @@ template <class _Rcvr, class _Env = env_of_t<_Rcvr>>
 struct _CCCL_TYPE_VISIBILITY_DEFAULT __rcvr_ref
 {
   using receiver_concept _CCCL_NODEBUG_ALIAS = receiver_t;
-  _Rcvr& __rcvr_;
+
+  _CCCL_API constexpr __rcvr_ref(_Rcvr& __rcvr) noexcept
+      : __rcvr_(_CUDA_VSTD::addressof(__rcvr))
+  {}
 
   _CCCL_EXEC_CHECK_DISABLE
   template <class... _As>
   _CCCL_TRIVIAL_API void set_value(_As&&... __as) noexcept
   {
-    static_cast<_Rcvr&&>(__rcvr_).set_value(static_cast<_As&&>(__as)...);
+    static_cast<_Rcvr&&>(*__rcvr_).set_value(static_cast<_As&&>(__as)...);
   }
 
   _CCCL_EXEC_CHECK_DISABLE
   template <class _Error>
   _CCCL_TRIVIAL_API void set_error(_Error&& __err) noexcept
   {
-    static_cast<_Rcvr&&>(__rcvr_).set_error(static_cast<_Error&&>(__err));
+    static_cast<_Rcvr&&>(*__rcvr_).set_error(static_cast<_Error&&>(__err));
   }
 
   _CCCL_EXEC_CHECK_DISABLE
   _CCCL_TRIVIAL_API void set_stopped() noexcept
   {
-    static_cast<_Rcvr&&>(__rcvr_).set_stopped();
+    static_cast<_Rcvr&&>(*__rcvr_).set_stopped();
   }
 
-  _CCCL_API auto get_env() const noexcept -> _Env
+  [[nodiscard]] _CCCL_API auto get_env() const noexcept -> _Env
   {
-    return execution::get_env(__rcvr_);
+    return execution::get_env(*__rcvr_);
   }
+
+private:
+  _Rcvr* __rcvr_;
 };
 
-template <class _Rcvr>
-_CCCL_HOST_DEVICE __rcvr_ref(_Rcvr&) -> __rcvr_ref<_Rcvr>;
 } // namespace cuda::experimental::execution
 
 #include <cuda/experimental/__execution/epilogue.cuh>
