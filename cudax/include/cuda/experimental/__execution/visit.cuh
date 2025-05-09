@@ -49,9 +49,6 @@ struct __any_t
   _CCCL_API operator _Ty&&();
 };
 
-template <class _First, class _Second>
-using __second_t = _Second;
-
 _CCCL_DIAG_PUSH
 _CCCL_DIAG_SUPPRESS_CLANG("-Wmissing-field-initializers")
 

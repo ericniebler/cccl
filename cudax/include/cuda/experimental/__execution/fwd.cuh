@@ -201,6 +201,9 @@ extern __fn_t<set_stopped_t>* __set_tag<__stopped, _Void>;
 _CCCL_GLOBAL_CONSTANT auto __default_config =
   experimental::make_config(experimental::make_hierarchy(block_dims<1>, grid_dims<1>));
 } // namespace execution
+
+_CCCL_GLOBAL_CONSTANT auto __default_config = make_config(make_hierarchy(block_dims<1>, grid_dims<1>));
+
 } // namespace cuda::experimental
 
 #include <cuda/experimental/__execution/epilogue.cuh>
