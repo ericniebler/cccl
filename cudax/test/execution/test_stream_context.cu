@@ -18,6 +18,8 @@
 
 _CCCL_NV_DIAG_SUPPRESS(177) // function "_is_on_device" was declared but never referenced
 
+namespace task = cuda::experimental::execution;
+
 namespace
 {
 __host__ __device__ bool _is_on_device() noexcept
@@ -41,15 +43,15 @@ struct _say_hello
 
 void stream_context_test1()
 {
-  cudax_async::stream_context ctx;
+  task::stream_context ctx;
   auto sched = ctx.get_scheduler();
 
-  auto sndr = cudax_async::schedule(sched) //
-            | cudax_async::then([] __device__() noexcept -> bool {
+  auto sndr = task::schedule(sched) //
+            | task::then([] __device__() noexcept -> bool {
                 return _is_on_device();
               });
 
-  auto [on_device] = cudax_async::sync_wait(std::move(sndr)).value();
+  auto [on_device] = task::sync_wait(std::move(sndr)).value();
   CHECK(on_device);
 }
 

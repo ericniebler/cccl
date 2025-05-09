@@ -198,6 +198,8 @@ template <class _Void>
 extern __fn_t<set_stopped_t>* __set_tag<__stopped, _Void>;
 } // namespace __detail
 
+_CCCL_GLOBAL_CONSTANT auto __default_config = make_config(make_hierarchy(block_dims<1>, grid_dims<1>));
+
 } // namespace execution
 
 } // namespace cuda::experimental

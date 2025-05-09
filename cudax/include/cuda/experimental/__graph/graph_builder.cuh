@@ -31,6 +31,7 @@
 #include <cuda/std/cstddef>
 #include <cuda/std/span>
 
+#include <cuda/experimental/__execution/graph/domain.cuh>
 #include <cuda/experimental/__graph/graph.cuh>
 #include <cuda/experimental/__graph/graph_node_ref.cuh>
 
@@ -347,6 +348,8 @@ struct _CCCL_TYPE_VISIBILITY_DEFAULT graph_builder
   }
 
 private:
+  friend struct execution::graph_domain;
+
   //! \brief Constructs a `graph_builder` object from a native CUDA graph handle.
   //! \param __graph The native CUDA graph handle to construct the `graph_builder` object from.
   //! \throws None
