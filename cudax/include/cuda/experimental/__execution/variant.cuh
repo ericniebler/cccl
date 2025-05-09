@@ -120,6 +120,7 @@ public:
     return *_CUDA_VSTD::launder(__value);
   }
 
+  _CCCL_EXEC_CHECK_DISABLE
   template <class _Fn, class... _As>
   _CCCL_API auto __emplace_from(_Fn&& __fn, _As&&... __as) //
     noexcept(__nothrow_callable<_Fn, _As...>) -> __call_result_t<_Fn, _As...>&
@@ -134,6 +135,7 @@ public:
     return *_CUDA_VSTD::launder(__value);
   }
 
+  _CCCL_EXEC_CHECK_DISABLE
   template <class _Fn, class _Self, class... _As>
   _CCCL_API static void __visit(_Fn&& __fn, _Self&& __self, _As&&... __as) //
     noexcept((__nothrow_callable<_Fn, _As..., __copy_cvref_t<_Self, _Ts>> && ...))

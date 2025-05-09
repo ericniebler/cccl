@@ -68,6 +68,11 @@ foreach(cudax_target IN LISTS cudax_TARGETS)
 
   foreach (example_src IN LISTS example_srcs)
     cudax_add_example(example_target "${example_src}" ${cudax_target})
+    if ("${example_src}" STREQUAL "stdexec_stream.cu")
+      get_target_property(cuda_arch_list ${example_target} CUDA_ARCHITECTURES)
+      list(REMOVE_ITEM cuda_arch_list "60" "61")
+      set_target_properties(${example_target} PROPERTIES CUDA_ARCHITECTURES "${cuda_arch_list}")
+    endif()
   endforeach()
 endforeach()
 

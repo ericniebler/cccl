@@ -28,6 +28,7 @@
 #include <cuda/experimental/__detail/utility.cuh>
 #include <cuda/experimental/__execution/meta.cuh>
 #include <cuda/experimental/__execution/visit.cuh>
+#include <cuda/experimental/__launch/configuration.cuh>
 
 #include <cuda/experimental/__execution/prologue.cuh>
 
@@ -176,6 +177,9 @@ extern __fn_t<set_error_t>* __set_tag<__error, _Void>;
 template <class _Void>
 extern __fn_t<set_stopped_t>* __set_tag<__stopped, _Void>;
 } // namespace __detail
+
+_CCCL_GLOBAL_CONSTANT auto __default_config = make_config(make_hierarchy(block_dims<1>, grid_dims<1>));
+
 } // namespace cuda::experimental::execution
 
 #include <cuda/experimental/__execution/epilogue.cuh>

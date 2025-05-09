@@ -286,6 +286,8 @@ struct _CCCL_TYPE_VISIBILITY_DEFAULT graph
   }
 
 private:
+  friend struct execution::graph_domain;
+
   //! \brief Adds this graph as a child graph to the parent graph.
   //! \param __parent The parent graph to which this graph will be added.
   //! \return A `graph_node` representing the added child graph.

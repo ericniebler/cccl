@@ -124,6 +124,7 @@ struct _CCCL_TYPE_VISIBILITY_DEFAULT __upon_t
       execution::start(__opstate_);
     }
 
+    _CCCL_EXEC_CHECK_DISABLE
     template <bool _CanThrow = false, class... _Ts>
     _CCCL_API void __set(_Ts&&... __ts) noexcept(!_CanThrow)
     {

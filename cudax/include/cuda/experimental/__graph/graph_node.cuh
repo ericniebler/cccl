@@ -28,6 +28,8 @@
 #include <cuda/std/__utility/swap.h>
 #include <cuda/std/array>
 
+#include <cuda/experimental/__execution/graph/domain.cuh>
+
 #include <cuda/experimental/__execution/prologue.cuh>
 
 namespace cuda::experimental
@@ -306,6 +308,7 @@ struct _CCCL_TYPE_VISIBILITY_DEFAULT graph_node : graph_node_ref
 
 private:
   friend struct graph;
+  friend struct execution::graph_domain;
 
   _CCCL_HOST_API explicit graph_node(cudaGraphNode_t __node, cudaGraph_t __graph) noexcept
       : graph_node_ref{__node, __graph}
