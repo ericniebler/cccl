@@ -26,6 +26,8 @@
 #include <cuda/std/span>
 
 #include <cuda/experimental/__algorithm/common.cuh>
+#include <cuda/experimental/__execution/completion_signatures.cuh>
+#include <cuda/experimental/__execution/cpos.cuh>
 #include <cuda/experimental/__stream/stream_ref.cuh>
 
 #include <cuda/std/__cccl/prologue.h>
@@ -146,6 +148,78 @@ void copy_bytes(stream_ref __stream, _SrcTy&& __src, _DstTy&& __dst)
     __stream,
     experimental::__as_mdspan(device_transform(__stream, _CUDA_VSTD::forward<_SrcTy>(__src))),
     experimental::__as_mdspan(device_transform(__stream, _CUDA_VSTD::forward<_DstTy>(__dst))));
+}
+
+//
+// Lazy copy_bytes algorithm
+//
+struct _CCCL_TYPE_VISIBILITY_DEFAULT __copy_bytes_t
+{
+  _CUDAX_SEMI_PRIVATE :
+  template <typename _SrcTy, typename _DstTy, class _Rcvr>
+  struct _CCCL_TYPE_VISIBILITY_DEFAULT __opstate_t;
+
+  template <typename _SrcTy, typename _DstTy>
+  struct _CCCL_TYPE_VISIBILITY_DEFAULT __sndr_t;
+
+  struct _CCCL_TYPE_VISIBILITY_DEFAULT __fn
+  {
+    template <typename _Params>
+    _CCCL_TRIVIAL_API constexpr auto operator()(_CUDA_VSTD::__ignore_t, _Params __params) const;
+  };
+
+public:
+  template <typename _SrcTy, typename _DstTy>
+  _CCCL_TRIVIAL_API auto operator()(_SrcTy&& __src, _DstTy&& __dst) const
+  {
+    return __sndr_t{_CUDA_VSTD::span{_CUDA_VSTD::forward<_SrcTy>(__src)},
+                    _CUDA_VSTD::span{_CUDA_VSTD::forward<_DstTy>(__dst)}};
+  }
+};
+
+template <typename _SrcTy, typename _DstTy, typename _Rcvr>
+struct _CCCL_TYPE_VISIBILITY_DEFAULT __copy_bytes_t::__opstate_t
+{
+  using operation_state_concept _CCCL_NODEBUG_ALIAS = execution::operation_state_t;
+
+  _CCCL_API void start() noexcept {}
+
+  _CUDA_VSTD::span<_SrcTy> __src_;
+  _CUDA_VSTD::span<_DstTy> __dst_;
+  _Rcvr __rcvr_;
+};
+
+template <typename _SrcTy, typename _DstTy>
+struct _CCCL_TYPE_VISIBILITY_DEFAULT __copy_bytes_t::__sndr_t
+{
+  using sender_concept _CCCL_NODEBUG_ALIAS = execution::sender_t;
+
+  template <class _Self, class...>
+  _CCCL_API static constexpr auto get_completion_signatures() noexcept
+  {
+    return execution::completion_signatures<execution::set_value_t(), execution::set_error_t(cudaError_t)>{};
+  }
+
+  template <class _Rcvr>
+  _CCCL_API auto connect(_Rcvr __rcvr) const noexcept
+  {
+    return __copy_bytes_t::__opstate_t<_SrcTy, _DstTy, _Rcvr>{
+      __params_.__src_, __params_.__dst_, _CUDA_VSTD::move(__rcvr)};
+  }
+
+  _CCCL_NO_UNIQUE_ADDRESS __copy_bytes_t __tag_;
+  struct __params
+  {
+    _CUDA_VSTD::span<_SrcTy> __src_;
+    _CUDA_VSTD::span<_DstTy> __dst_;
+  } __params_;
+};
+
+// TODO: constrain this:
+template <typename _SrcTy, typename _DstTy>
+_CCCL_TRIVIAL_API auto copy_bytes(_SrcTy&& __src, _DstTy&& __dst)
+{
+  return __copy_bytes_t::__fn{}(_CUDA_VSTD::forward<_SrcTy>(__src), _CUDA_VSTD::forward<_DstTy>(__dst));
 }
 
 } // namespace cuda::experimental

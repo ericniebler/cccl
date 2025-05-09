@@ -24,6 +24,8 @@ _CCCL_BEGIN_NV_DIAG_SUPPRESS(177) // function "_is_on_device" was declared but n
 
 namespace ex = cuda::experimental::execution;
 
+namespace task = cuda::experimental::execution;
+
 namespace
 {
 __host__ __device__ bool _is_on_device() noexcept

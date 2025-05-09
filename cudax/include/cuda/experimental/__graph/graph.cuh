@@ -133,7 +133,9 @@ struct _CCCL_TYPE_VISIBILITY_DEFAULT graph
   }
 
 private:
+  friend struct graph_builder;
   friend struct graph_builder_ref;
+  friend struct execution::graph_domain;
 
   _CCCL_HIDE_FROM_ABI graph() = default;
 

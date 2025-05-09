@@ -36,7 +36,7 @@ struct recursive_lambda
   Fn fn;
 
   template <class... Args>
-  __host__ __device__ auto operator()(Args&&... args)
+  auto operator()(Args&&... args)
   {
     return fn(*this, cuda::std::forward<Args>(args)...);
   }

@@ -29,6 +29,7 @@
 #include <cuda/std/cstddef>
 #include <cuda/std/span>
 
+#include <cuda/experimental/__execution/graph/domain.cuh>
 #include <cuda/experimental/__graph/fwd.cuh>
 #include <cuda/experimental/__graph/graph_node_type.cuh>
 
@@ -255,7 +256,9 @@ struct graph_node_ref
   }
 
 private:
+  friend struct graph_builder;
   friend struct graph_builder_ref;
+  friend struct execution::graph_domain;
 
   template <class... _Nodes>
   friend _CCCL_TRIVIAL_HOST_API constexpr auto depends_on(const _Nodes&...) noexcept

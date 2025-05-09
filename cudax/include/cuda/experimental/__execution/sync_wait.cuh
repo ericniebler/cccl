@@ -21,6 +21,7 @@
 #  pragma system_header
 #endif // no system header
 
+#include <cuda/std/__cccl/unreachable.h>
 #include <cuda/std/__exception/cuda_error.h>
 #include <cuda/std/__type_traits/always_false.h>
 #include <cuda/std/__type_traits/decay.h>
@@ -45,6 +46,20 @@
 
 namespace cuda::experimental::execution
 {
+// Returned from sync_wait when the sender is not valid.
+template <class _Diagnostic>
+struct __bad_sync_wait
+{
+  static_assert(_CUDA_VSTD::__always_false_v<_Diagnostic>,
+                "sync_wait cannot compute the completions of the sender passed to it.");
+  _CCCL_HOST_API static auto __result() -> __bad_sync_wait;
+
+  _CCCL_HOST_API auto value() const -> const __bad_sync_wait&;
+  _CCCL_HOST_API auto operator*() const -> const __bad_sync_wait&;
+
+  int i{}; // so that structured bindings kinda work
+};
+
 /// @brief Function object type for synchronously waiting for the result of a
 /// sender.
 struct sync_wait_t
@@ -182,19 +197,6 @@ struct sync_wait_t
         throw static_cast<_Error&&>(__err);
       }
     }
-  };
-
-  template <class _Diagnostic>
-  struct __bad_sync_wait
-  {
-    static_assert(_CUDA_VSTD::__always_false_v<_Diagnostic>,
-                  "sync_wait cannot compute the completions of the sender passed to it.");
-    _CCCL_HOST_API static auto __result() -> __bad_sync_wait;
-
-    _CCCL_HOST_API auto value() const -> const __bad_sync_wait&;
-    _CCCL_HOST_API auto operator*() const -> const __bad_sync_wait&;
-
-    int i{}; // so that structured bindings kinda work
   };
 
 public:

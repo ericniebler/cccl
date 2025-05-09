@@ -89,6 +89,7 @@ foreach(cn_target IN LISTS cudax_TARGETS)
     execution/test_conditional.cu
     execution/test_continues_on.cu
     execution/test_just.cu
+    execution/test_graph_context.cu
     execution/test_let_value.cu
     execution/test_on.cu
     execution/test_sequence.cu

@@ -23,7 +23,12 @@
 
 #include <cuda/std/__utility/exchange.h>
 
+#include <cuda/experimental/__execution/graph/domain.cuh>
+#include <cuda/experimental/__graph/graph.cuh>
 #include <cuda/experimental/__graph/graph_builder_ref.cuh>
+#include <cuda/experimental/__graph/graph_node_ref.cuh>
+
+#include <cuda_runtime_api.h>
 
 #include <cuda/std/__cccl/prologue.h>
 
@@ -182,6 +187,8 @@ struct _CCCL_TYPE_VISIBILITY_DEFAULT graph_builder : graph_builder_ref
   }
 
 private:
+  friend struct execution::graph_domain;
+
   //! \brief Constructs a `graph_builder` object from a native CUDA graph handle.
   //! \param __graph The native CUDA graph handle to construct the `graph_builder` object from.
   //! \param __dev The device on which graph nodes will execute, default to device 0.

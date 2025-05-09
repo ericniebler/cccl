@@ -29,6 +29,7 @@
 #include <cuda/std/cstddef>
 #include <cuda/std/span>
 
+#include <cuda/experimental/__execution/graph/domain.cuh>
 #include <cuda/experimental/__graph/graph.cuh>
 #include <cuda/experimental/__graph/graph_node_ref.cuh>
 
@@ -265,6 +266,7 @@ struct _CCCL_TYPE_VISIBILITY_DEFAULT graph_builder_ref
 
 private:
   friend struct graph_builder;
+  friend struct execution::graph_domain;
 
   //! \brief Adds this graph as a child graph to the parent graph.
   //! \param __parent The parent graph to which this graph will be added.
