@@ -28,6 +28,7 @@
 #include <cuda/std/__utility/swap.h>
 #include <cuda/std/cstddef>
 
+#include <cuda/experimental/__execution/graph/domain.cuh>
 #include <cuda/experimental/__graph/depends_on.cuh>
 #include <cuda/experimental/__graph/fwd.cuh>
 #include <cuda/experimental/__graph/graph_node_ref.cuh>
@@ -162,6 +163,7 @@ struct _CCCL_TYPE_VISIBILITY_DEFAULT graph_node : graph_node_ref
 
 private:
   friend struct graph;
+  friend struct execution::graph_domain;
 
   //! \brief Constructs a `graph_node` object from a native CUDA graph node handle and graph
   //!        handle.

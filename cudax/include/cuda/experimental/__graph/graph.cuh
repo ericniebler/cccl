@@ -331,6 +331,8 @@ struct _CCCL_TYPE_VISIBILITY_DEFAULT graph
   }
 
 private:
+  friend struct execution::graph_domain;
+
   //! \brief Constructs a `graph` object from a native CUDA graph handle.
   //! \param __graph The native CUDA graph handle to construct the `graph` object from.
   //! \throws None

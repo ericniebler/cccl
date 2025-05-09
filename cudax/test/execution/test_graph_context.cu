@@ -28,9 +28,10 @@ _CCCL_API bool _is_on_device() noexcept
                     ({ return true; }));
 }
 
-void stream_context_test1()
+void graph_context_test1()
 {
-  task::stream_context ctx;
+  cudax::stream stream;
+  task::graph_context ctx{stream};
   auto sched = ctx.get_scheduler();
 
   auto sndr = task::schedule(sched) //
@@ -42,11 +43,11 @@ void stream_context_test1()
   CHECK(on_device);
 }
 
-C2H_TEST("a simple use of the stream context", "[context][stream]")
+C2H_TEST("a simple use of the graph context", "[context][graph]")
 {
   // put the test in a separate function to avoid an nvc++ issue with
   // extended lambdas in functions with internal linkage (as is the case
   // with C2H tests).
-  stream_context_test1();
+  graph_context_test1();
 }
 } // namespace

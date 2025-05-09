@@ -32,6 +32,7 @@
 #include <cuda/std/cstddef>
 #include <cuda/std/span>
 
+#include <cuda/experimental/__execution/graph/domain.cuh>
 #include <cuda/experimental/__graph/depends_on.cuh>
 #include <cuda/experimental/__graph/fwd.cuh>
 #include <cuda/experimental/__graph/graph_node_type.cuh>
@@ -245,6 +246,7 @@ struct graph_node_ref
 private:
   friend struct graph;
   friend struct graph_node;
+  friend struct execution::graph_domain;
 
   _CCCL_HOST_API static constexpr void __noop_deleter(cudaGraphNode_t*) noexcept {}
   _CCCL_HOST_API static _CCCL_CONSTEXPR_CXX20_ALLOCATION void __array_deleter(cudaGraphNode_t* __ptr) noexcept

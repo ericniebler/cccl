@@ -4,12 +4,12 @@
 // under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-// SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES.
+// SPDX-FileCopyrightText: Copyright (c) 2024 NVIDIA CORPORATION & AFFILIATES.
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef __CUDAX_EXECUTION_STREAM_CONTEXT
-#define __CUDAX_EXECUTION_STREAM_CONTEXT
+#ifndef __CUDAX___EXECUTION_GRAPH_CONTEXT
+#define __CUDAX___EXECUTION_GRAPH_CONTEXT
 
 #include <cuda/std/detail/__config>
 
@@ -21,12 +21,10 @@
 #  pragma system_header
 #endif // no system header
 
-// IWYU pragma: begin_exports
-#include <cuda/experimental/__execution/storage_registry.cuh>
-#include <cuda/experimental/__execution/stream/context.cuh>
-#include <cuda/experimental/__execution/stream/domain.cuh>
-#include <cuda/experimental/__execution/stream/launch.cuh>
-#include <cuda/experimental/__execution/stream/sync_wait.cuh>
-// IWYU pragma: end_exports
+#include <cuda/experimental/__execution/graph/context.cuh> // IWYU pragma: export
+#include <cuda/experimental/__execution/graph/domain.cuh> // IWYU pragma: export
+#include <cuda/experimental/__execution/graph/launch.cuh> // IWYU pragma: export
+#include <cuda/experimental/__execution/graph/sync_wait.cuh> // IWYU pragma: export
+#include <cuda/experimental/__execution/graph/then.cuh> // IWYU pragma: export
 
-#endif //__CUDAX_EXECUTION_STREAM_CONTEXT
+#endif //__CUDAX___EXECUTION_GRAPH_CONTEXT

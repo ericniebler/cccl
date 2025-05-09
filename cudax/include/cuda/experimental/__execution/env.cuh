@@ -43,6 +43,7 @@ namespace execution
 using _CUDA_STD_EXEC::env;
 using _CUDA_STD_EXEC::env_of_t;
 using _CUDA_STD_EXEC::get_env;
+using _CUDA_STD_EXEC::get_env_t;
 using _CUDA_STD_EXEC::prop;
 
 using _CUDA_STD_EXEC::__nothrow_queryable_with;

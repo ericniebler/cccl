@@ -78,15 +78,29 @@ struct __sender_type_cannot_be_used_to_initialize_a_structured_binding;
 template <size_t _Arity>
 extern __sender_type_cannot_be_used_to_initialize_a_structured_binding<_Arity> __unpack;
 
-#  define _CCCL_UNPACK_SENDER(_Arity)                                                                             \
-    template <>                                                                                                   \
-    [[maybe_unused]]                                                                                              \
-    _CCCL_GLOBAL_CONSTANT auto __unpack<2 + _Arity> =                                                             \
-      [](auto& __visitor, auto&& __sndr, auto& __context) -> decltype(auto) {                                     \
-      using _Sndr _CCCL_NODEBUG_ALIAS                                  = decltype(__sndr);                        \
-      auto&& [__tag, __data _CCCL_PP_REPEAT(_Arity, _CCCL_BIND_CHILD)] = static_cast<_Sndr&&>(__sndr);            \
-      return __visitor(__context, __tag, _CCCL_FWD_LIKE(_Sndr, __data) _CCCL_PP_REPEAT(_Arity, _CCCL_FWD_CHILD)); \
-    }
+#  define _CCCL_BIND_CHILD(_Ord) , _CCCL_PP_CAT(__child, _Ord)
+#  define _CCCL_FWD_CHILD(_Ord)  , _CCCL_FWD_LIKE(_Sndr, _CCCL_PP_CAT(__child, _Ord))
+#  define _CCCL_FWD_LIKE(_X, _Y) static_cast<_CUDA_VSTD::__copy_cvref_t<_X&&, decltype(_Y)>>(_Y)
+
+template <size_t _Arity>
+struct __unpack_t;
+
+#  define _CCCL_UNPACK_SENDER(_Arity)                                                                               \
+    template <>                                                                                                     \
+    struct __unpack_t<2 + _Arity>                                                                                   \
+    {                                                                                                               \
+      _CCCL_EXEC_CHECK_DISABLE                                                                                      \
+      template <class _Visitor, class _Sndr, class _Context>                                                        \
+      _CCCL_API constexpr auto operator()(_Visitor& __visitor, _Sndr&& __sndr, _Context& __context) const           \
+        -> decltype(auto)                                                                                           \
+      {                                                                                                             \
+        auto&& [__tag, __data _CCCL_PP_REPEAT(_Arity, _CCCL_BIND_CHILD)] = static_cast<_Sndr&&>(__sndr);            \
+        return __visitor(__context, __tag, _CCCL_FWD_LIKE(_Sndr, __data) _CCCL_PP_REPEAT(_Arity, _CCCL_FWD_CHILD)); \
+      }                                                                                                             \
+    };                                                                                                              \
+    template <>                                                                                                     \
+    [[maybe_unused]]                                                                                                \
+    _CCCL_GLOBAL_CONSTANT auto __unpack<2 + _Arity> = __unpack_t<2 + _Arity>{};
 
 _CCCL_UNPACK_SENDER(0);
 _CCCL_UNPACK_SENDER(1);

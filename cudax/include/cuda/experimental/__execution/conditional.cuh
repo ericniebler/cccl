@@ -132,6 +132,7 @@ struct _CCCL_TYPE_VISIBILITY_DEFAULT conditional_t
       execution::start(__op_);
     }
 
+    _CCCL_EXEC_CHECK_DISABLE
     template <class... _As>
     _CCCL_API void set_value(_As&&... __as) noexcept
     {

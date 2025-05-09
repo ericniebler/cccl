@@ -21,11 +21,11 @@
 #  pragma system_header
 #endif // no system header
 
+#include <cuda/std/__algorithm/copy_n.h>
 #include <cuda/std/__type_traits/is_trivially_destructible.h>
 #include <cuda/std/cstddef>
 #include <cuda/std/span>
 
-#include <cuda/experimental/__algorithm/copy.cuh>
 #include <cuda/experimental/__container/uninitialized_async_buffer.cuh>
 #include <cuda/experimental/__execution/type_traits.cuh>
 #include <cuda/experimental/__memory_resource/managed_memory_resource.cuh>
@@ -35,15 +35,14 @@
 #include <cuda/experimental/__execution/prologue.cuh>
 
 // The storage registry is a slab allocator of managed memory. It is used by the CUDA
-// stream scheduler to allocate temporary storage that will be used by the senders that
-// are scheduled on the stream. When "compiling" a sender expression into an operation
-// state, each sender in the tree can ask the registry to reserve slots of memory suitable
-// to store some type(s), and receive tokens in return. The total memory is allocated in
-// one chunk, with room to store the operation state and some metadata as well. During
-// execution, each sender's operation state can access the memory it reserved by using the
-// token it received. The registry is also responsible for freeing the memory when the
-// operation state is destroyed, running any destructors of the types stored in the
-// memory.
+// schedulers to allocate temporary storage that will be used by the senders that are
+// scheduled on the stream. When "compiling" a sender expression into an operation state
+// or a CUDA graph, each sender in the tree can ask the registry to reserve slots of
+// memory suitable to store some type(s), and receive tokens in return. The total memory
+// is allocated in one chunk, with room to store the operation state and some metadata as
+// well. During execution, each sender's operation state can access the memory it reserved
+// by using the token it received. The registry is also responsible for freeing the memory
+// when it is destroyed, running any destructors of the types stored in the memory.
 
 namespace cuda::experimental::execution
 {
@@ -71,11 +70,13 @@ _CCCL_API constexpr auto __aligned_size(size_t __size) noexcept -> size_t
 struct __storage_registry
 {
   _CCCL_EXEC_CHECK_DISABLE
-  template <class _Ty>
-  _CCCL_API auto __write_at(size_t __token, _Ty __value) -> _Ty&
+  template <class _Ty, class... _Args>
+  _CCCL_API auto __write_at(size_t __token, _Args&&... __args) -> _Ty&
   {
     constexpr auto __bytes = __aligned_size(sizeof(_Ty));
-    auto* __ptr = ::new (__buffer_ + (__descriptors_[__token].__offset_ - __bytes)) _Ty(static_cast<_Ty&&>(__value));
+    const auto __offset    = __descriptors_[__token].__offset_ - __bytes;
+    auto* const __ptr      = ::new (__buffer_ + __offset) _Ty{static_cast<_Args&&>(__args)...};
+
     if constexpr (!::std::is_trivially_destructible_v<_Ty>)
     {
       auto __dtor = +[](_CUDA_VSTD_NOVERSION::byte* __p) noexcept {
@@ -93,7 +94,7 @@ struct __storage_registry
     using _Ty              = __decay_t<decltype(static_cast<_Fn&&>(__fn)(static_cast<_Args&&>(__args)...))>;
     constexpr auto __bytes = __aligned_size(sizeof(_Ty));
     auto* pb               = __buffer_ + (__descriptors_[__token].__offset_ - __bytes);
-    auto* __ptr            = ::new (pb) _Ty(static_cast<_Fn&&>(__fn)(static_cast<_Args&&>(__args)...));
+    auto* __ptr            = ::new (pb) _Ty{static_cast<_Fn&&>(__fn)(static_cast<_Args&&>(__args)...)};
     if constexpr (!_CUDA_VSTD::is_trivially_destructible_v<_Ty>)
     {
       auto __dtor = +[](_CUDA_VSTD_NOVERSION::byte* __p) noexcept {
@@ -105,11 +106,15 @@ struct __storage_registry
   }
 
   template <class _Ty>
-  _CCCL_API auto __read_at(size_t __token) noexcept -> _Ty&
+  _CCCL_TRIVIAL_API auto __read_at(size_t __token) noexcept -> _Ty&
   {
-    constexpr auto __bytes = __aligned_size(sizeof(_Ty));
-    auto __offset          = __descriptors_[__token].__offset_ - __bytes;
-    return *reinterpret_cast<_Ty*>(__buffer_ + __offset);
+    return *static_cast<_Ty*>(__address_at(__token, sizeof(_Ty)));
+  }
+
+  _CCCL_API auto __address_at(size_t __token, size_t __bytes) noexcept -> void*
+  {
+    auto __offset = __descriptors_[__token].__offset_ - __bytes;
+    return __buffer_ + __offset;
   }
 
   using __descriptor_t                  = __storage_descriptor;
@@ -165,11 +170,9 @@ struct __storage_registry_context
     auto* __device_descriptors =
       reinterpret_cast<__descriptor_t*>(__buffer_.data() + (__host_descriptors_[__token].__offset_ - __bytes));
 
-    experimental::copy_bytes(
-      __buffer_.get_stream(), __host_descriptors_, _CUDA_VSTD::span{__device_descriptors, __host_descriptors_.size()});
+    // Copy the __descriptors_ into the __buffer_ so we can perform look-ups on the device:
+    _CUDA_VSTD::copy_n(__host_descriptors_.data(), __host_descriptors_.size(), __device_descriptors);
 
-    // Wait until the memcpy is done an then return the __storage_registry:
-    __buffer_.get_stream().sync();
     return __storage_registry{__device_descriptors, __buffer_.data()};
   }
 

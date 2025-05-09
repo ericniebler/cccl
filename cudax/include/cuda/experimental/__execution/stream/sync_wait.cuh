@@ -21,13 +21,15 @@
 #  pragma system_header
 #endif // no system header
 
+#include <cuda/std/__cccl/unreachable.h>
 #include <cuda/std/__exception/cuda_error.h>
 
 #include <cuda/experimental/__execution/fwd.cuh>
 #include <cuda/experimental/__execution/run_loop.cuh>
+#include <cuda/experimental/__execution/storage_registry.cuh>
 #include <cuda/experimental/__execution/stream/context.cuh>
 #include <cuda/experimental/__execution/stream/domain.cuh>
-#include <cuda/experimental/__execution/stream/storage_registry.cuh>
+#include <cuda/experimental/__execution/sync_wait.cuh>
 #include <cuda/experimental/__stream/get_stream.cuh>
 #include <cuda/experimental/__stream/stream_ref.cuh>
 
@@ -153,37 +155,46 @@ public:
   _CCCL_HOST_API auto operator()(_Sndr&& __sndr, _Env&&...) const
   {
     // TODO: use _Env
-    using __sigs_t    = completion_signatures_of_t<_Sndr, __env_t>;
-    using __values_t  = __value_types<__sigs_t, _CUDA_VSTD::tuple, _CUDA_VSTD::__type_self_t>;
-    using __opstate_t = connect_result_t<_Sndr, __rcvr_t<__values_t>>;
+    using __completions = completion_signatures_of_t<_Sndr, __env_t>;
 
-    auto __stream = get_stream(get_completion_scheduler<set_value_t>(get_env(__sndr)));
-    __storage_registry_context __context{__stream};
-
-    const auto __state_id   = __context.__reserve_for<__state_ex_t<__values_t>>();
-    const auto __opstate_id = __context.__reserve_for<__opstate_t>();
-    // Allocate all the reserved temporary memory:
-    auto __stg = __context.__finalize();
-
-    // create the object to hold the result:
-    auto& __state = __stg.__write_at_from(__state_id, __mk_state<__values_t>{}, __stream, &__context, __stg);
-
-    // Put the operation state in the temp storage:
-    auto& __opstate =
-      __stg.__write_at_from(__opstate_id, connect, static_cast<_Sndr&&>(__sndr), __rcvr_t<__values_t>{{&__state}});
-    start(__opstate); // Start the operation
-
-    __state.__loop_.run(); // Drive the run_loop:
-    __stream.sync(); // Wait for the stream to finish:
-
-    // Throw if the stream execution failed:
-    if (__state.__status_ != cudaSuccess)
+    if constexpr (!__valid_completion_signatures<__completions>)
     {
-      cuda::__throw_cuda_error(__state.__status_, "stream execution failed");
+      return __bad_sync_wait<__completions>::__result();
     }
+    else
+    {
+      using __values_t  = __value_types<__completions, _CUDA_VSTD::tuple, _CUDA_VSTD::__type_self_t>;
+      using __opstate_t = connect_result_t<_Sndr, __rcvr_t<__values_t>>;
 
-    // return the result from the temp storage:
-    return static_cast<_CUDA_VSTD::optional<__values_t>&&>(__state.__value_);
+      auto __stream = get_stream(get_completion_scheduler<set_value_t>(get_env(__sndr)));
+      __storage_registry_context __context{__stream};
+
+      const auto __state_id   = __context.__reserve_for<__state_ex_t<__values_t>>();
+      const auto __opstate_id = __context.__reserve_for<__opstate_t>();
+      // Allocate all the reserved temporary memory:
+      auto __stg = __context.__finalize();
+
+      // create the object to hold the result:
+      auto& __state = __stg.__write_at_from(__state_id, __mk_state<__values_t>{}, __stream, &__context, __stg);
+
+      // Put the operation state in the temp storage:
+      auto& __opstate =
+        __stg.__write_at_from(__opstate_id, connect, static_cast<_Sndr&&>(__sndr), __rcvr_t<__values_t>{{&__state}});
+      start(__opstate); // Start the operation
+
+      __state.__loop_.run(); // Drive the run_loop:
+      __stream.sync(); // Wait for the stream to finish:
+
+      // Throw if the stream execution failed:
+      if (__state.__status_ != cudaSuccess)
+      {
+        cuda::__throw_cuda_error(__state.__status_, "stream execution failed");
+      }
+
+      // return the result from the temp storage:
+      return static_cast<_CUDA_VSTD::optional<__values_t>&&>(__state.__value_);
+    }
+    _CCCL_UNREACHABLE();
   }
 };
 

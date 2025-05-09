@@ -114,6 +114,7 @@ struct connect_t
   _CCCL_TRIVIAL_API constexpr auto operator()(_Sndr&& __sndr, _Rcvr __rcvr) const
     noexcept(noexcept(declval<_Sndr>().connect(declval<_Rcvr>()))) -> decltype(auto)
   {
+    // using __dom_t _CCCL_NODEBUG_ALIAS = late_domain_of_t<_Sndr, env_of_t<_Rcvr>>;
     return static_cast<_Sndr&&>(__sndr).connect(static_cast<_Rcvr&&>(__rcvr));
   }
 
