@@ -27,6 +27,7 @@
 #include <cuda/std/__type_traits/is_convertible.h>
 #include <cuda/stream_ref>
 
+#include <cuda/experimental/__execution/queries.cuh>
 #include <cuda/experimental/__stream/stream.cuh>
 
 #include <cuda_runtime_api.h>
@@ -77,6 +78,11 @@ struct get_stream_t
   {
     static_assert(noexcept(__env.query(*this)), "");
     return __env.query(*this);
+  }
+
+  _CCCL_HIDE_FROM_ABI static constexpr auto query(execution::forwarding_query_t) noexcept -> bool
+  {
+    return true;
   }
 };
 

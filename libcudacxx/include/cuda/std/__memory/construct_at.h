@@ -203,6 +203,7 @@ __reverse_destroy(_BidirectionalIterator __first, _BidirectionalIterator __last)
   return __last;
 }
 
+_CCCL_EXEC_CHECK_DISABLE
 template <class _Tp>
 _LIBCUDACXX_HIDE_FROM_ABI _CCCL_CONSTEXPR_CXX20 void destroy_at(_Tp* __loc)
 {

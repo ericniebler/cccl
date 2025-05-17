@@ -33,6 +33,7 @@
 #include <cuda/experimental/__execution/meta.cuh>
 #include <cuda/experimental/__execution/run_loop.cuh>
 #include <cuda/experimental/__execution/utility.cuh>
+#include <cuda/experimental/__execution/variant.cuh>
 #include <cuda/experimental/__execution/write_env.cuh>
 
 #include <system_error>
@@ -45,7 +46,6 @@ namespace cuda::experimental::execution
 /// sender.
 struct sync_wait_t
 {
-  _CUDAX_SEMI_PRIVATE :
   struct _CCCL_TYPE_VISIBILITY_DEFAULT __env_t
   {
     run_loop* __loop_;
@@ -61,7 +61,8 @@ struct sync_wait_t
     }
   };
 
-  template <class _Values>
+  _CUDAX_SEMI_PRIVATE :
+  template <class _Values, class _Errors>
   struct _CCCL_TYPE_VISIBILITY_DEFAULT __state_t
   {
     struct _CCCL_TYPE_VISIBILITY_DEFAULT __rcvr_t
@@ -78,7 +79,10 @@ struct sync_wait_t
           }), //
           _CUDAX_CATCH(...) //
           ({ //
-            __state_->__eptr_ = ::std::current_exception();
+            if constexpr (!_CUDA_VSTD::is_nothrow_constructible_v<_Values, _As...>)
+            {
+              __state_->__errors_.__emplace(::std::current_exception());
+            }
           }) //
         )
         __state_->__loop_.finish();
@@ -87,18 +91,7 @@ struct sync_wait_t
       template <class _Error>
       _CCCL_API void set_error(_Error __err) && noexcept
       {
-        if constexpr (_CUDA_VSTD::is_same_v<_Error, ::std::exception_ptr>)
-        {
-          __state_->__eptr_ = static_cast<_Error&&>(__err);
-        }
-        else if constexpr (_CUDA_VSTD::is_same_v<_Error, ::std::error_code>)
-        {
-          __state_->__eptr_ = ::std::make_exception_ptr(::std::system_error(__err));
-        }
-        else
-        {
-          __state_->__eptr_ = ::std::make_exception_ptr(static_cast<_Error&&>(__err));
-        }
+        __state_->__errors_.__emplace(static_cast<_Error&&>(__err));
         __state_->__loop_.finish();
       }
 
@@ -114,14 +107,34 @@ struct sync_wait_t
     };
 
     _CUDA_VSTD::optional<_Values>* __values_;
-    ::std::exception_ptr __eptr_;
+    _Errors __errors_;
     run_loop __loop_;
+  };
+
+  struct __throw_error_fn
+  {
+    template <class _Error>
+    _CCCL_HOST_API void operator()(_Error&& __err) const
+    {
+      if constexpr (_CUDA_VSTD::_IsSame<_CUDA_VSTD::remove_cvref_t<_Error>, ::std::exception_ptr>::value)
+      {
+        ::std::rethrow_exception(static_cast<_Error&&>(__err));
+      }
+      else if constexpr (_CUDA_VSTD::_IsSame<_CUDA_VSTD::remove_cvref_t<_Error>, ::std::error_code>::value)
+      {
+        throw ::std::system_error(static_cast<_Error&&>(__err));
+      }
+      else
+      {
+        throw static_cast<_Error&&>(__err);
+      }
+    }
   };
 
   template <class _Diagnostic>
   struct __bad_sync_wait
   {
-    static_assert(_CUDA_VSTD::__always_false_v<_Diagnostic>(),
+    static_assert(_CUDA_VSTD::__always_false_v<_Diagnostic>,
                   "sync_wait cannot compute the completions of the sender passed to it.");
     static auto __result() -> __bad_sync_wait;
 
@@ -144,22 +157,24 @@ public:
     }
     else
     {
-      using __values _CCCL_NODEBUG_ALIAS = __value_types<__completions, _CUDA_VSTD::tuple, _CUDA_VSTD::__type_self_t>;
-      _CUDA_VSTD::optional<__values> __result{};
-      __state_t<__values> __state{&__result, {}, {}};
+      using __values_t _CCCL_NODEBUG_ALIAS = __value_types<__completions, _CUDA_VSTD::tuple, _CUDA_VSTD::__type_self_t>;
+      using __errors_t _CCCL_NODEBUG_ALIAS = __error_types<__completions, __decayed_variant>;
+      _CUDA_VSTD::optional<__values_t> __result{};
+      __state_t<__values_t, __errors_t> __state{&__result, {}, {}};
 
       // Launch the sender with a continuation that will fill in a variant
-      using __rcvr   = typename __state_t<__values>::__rcvr_t;
-      auto __opstate = execution::connect(static_cast<_Sndr&&>(__sndr), __rcvr{&__state});
+      using __rcvr_t = typename __state_t<__values_t, __errors_t>::__rcvr_t;
+      auto __opstate = execution::connect(static_cast<_Sndr&&>(__sndr), __rcvr_t{&__state});
+
       execution::start(__opstate);
 
       // Wait for the variant to be filled in, and process any work that
       // may be delegated to this thread.
       __state.__loop_.run();
 
-      if (__state.__eptr_)
+      if (__state.__errors_.__index() != __npos)
       {
-        ::std::rethrow_exception(__state.__eptr_);
+        __errors_t::__visit(__throw_error_fn{}, static_cast<__errors_t&&>(__state.__errors_));
       }
 
       return __result; // uses NRVO to "return" the result
@@ -202,7 +217,8 @@ public:
   template <class _Sndr, class... _Env>
   _CCCL_HOST_API auto operator()(_Sndr&& __sndr, _Env&&... __env) const
   {
-    using __dom_t _CCCL_NODEBUG_ALIAS = domain_for_t<_Sndr, _Env...>;
+    using __env_t = _CUDA_VSTD::_If<sizeof...(_Env) == 0, __env_t, env<_Env..., __env_t>>;
+    using __dom_t = domain_for_t<_Sndr, __env_t>;
     return execution::apply_sender(__dom_t{}, *this, static_cast<_Sndr&&>(__sndr), static_cast<_Env&&>(__env)...);
   }
 };

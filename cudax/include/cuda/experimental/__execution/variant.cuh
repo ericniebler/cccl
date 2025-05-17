@@ -50,8 +50,13 @@ class __variant_impl<_CUDA_VSTD::index_sequence<>>
 {
 public:
   template <class _Fn, class... _Us>
-  _CCCL_API void __visit(_Fn&&, _Us&&...) const noexcept
+  _CCCL_API static void __visit(_Fn&&, _Us&&...) noexcept
   {}
+
+  _CCCL_TRIVIAL_API static constexpr size_t __index() noexcept
+  {
+    return __npos;
+  }
 };
 
 template <size_t... _Idx, class... _Ts>
@@ -95,6 +100,20 @@ public:
     return __index_;
   }
 
+  _CCCL_EXEC_CHECK_DISABLE
+  template <class _Ty>
+  _CCCL_API auto __emplace(_Ty&& __value) noexcept(__nothrow_decay_copyable<_Ty>) -> _Ty&
+  {
+    constexpr size_t __new_index = execution::__index_of<__decay_t<_Ty>, _Ts...>();
+    static_assert(__new_index != __npos, "Type not in variant");
+
+    __destroy();
+    _Ty* __value_ptr = ::new (__ptr()) _Ty{static_cast<_Ty&&>(__value)};
+    __index_         = __new_index;
+    return *_CUDA_VSTD::launder(__value_ptr);
+  }
+
+  _CCCL_EXEC_CHECK_DISABLE
   template <class _Ty, class... _As>
   _CCCL_API auto __emplace(_As&&... __as) //
     noexcept(__nothrow_constructible<_Ty, _As...>) -> _Ty&
@@ -108,6 +127,7 @@ public:
     return *_CUDA_VSTD::launder(__value);
   }
 
+  _CCCL_EXEC_CHECK_DISABLE
   template <size_t _Ny, class... _As>
   _CCCL_API auto __emplace_at(_As&&... __as) //
     noexcept(__nothrow_constructible<__at<_Ny>, _As...>) -> __at<_Ny>&
@@ -120,6 +140,7 @@ public:
     return *_CUDA_VSTD::launder(__value);
   }
 
+  _CCCL_EXEC_CHECK_DISABLE
   template <class _Fn, class... _As>
   _CCCL_API auto __emplace_from(_Fn&& __fn, _As&&... __as) //
     noexcept(__nothrow_callable<_Fn, _As...>) -> __call_result_t<_Fn, _As...>&
@@ -134,6 +155,7 @@ public:
     return *_CUDA_VSTD::launder(__value);
   }
 
+  _CCCL_EXEC_CHECK_DISABLE
   template <class _Fn, class _Self, class... _As>
   _CCCL_API static void __visit(_Fn&& __fn, _Self&& __self, _As&&... __as) //
     noexcept((__nothrow_callable<_Fn, _As..., __copy_cvref_t<_Self, _Ts>> && ...))

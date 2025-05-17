@@ -59,6 +59,7 @@ struct _CCCL_TYPE_VISIBILITY_DEFAULT default_domain
   //! @param __sndr The sender to which the operation is applied.
   //! @param __args Additional arguments for the operation.
   //! @return The result of applying the sender operation.
+  _CCCL_EXEC_CHECK_DISABLE
   template <class _Tag, class _Sndr, class... _Args>
   _CCCL_TRIVIAL_API static constexpr auto apply_sender(_Tag, _Sndr&& __sndr, _Args&&... __args) noexcept(noexcept(
     _Tag{}.apply_sender(declval<_Sndr>(), declval<_Args>()...))) -> __apply_sender_result_t<_Tag, _Sndr, _Args...>
@@ -73,6 +74,7 @@ struct _CCCL_TYPE_VISIBILITY_DEFAULT default_domain
   //! @param __sndr The sender to be transformed.
   //! @param __env The environment used for the transformation.
   //! @return The result of transforming the sender with the given environment.
+  _CCCL_EXEC_CHECK_DISABLE
   template <class _Sndr, class _Env>
   _CCCL_TRIVIAL_API static constexpr auto transform_sender(_Sndr&& __sndr, const _Env& __env) noexcept(
     noexcept(tag_of_t<_Sndr>{}.transform_sender(static_cast<_Sndr&&>(__sndr), __env)))
@@ -97,6 +99,33 @@ struct _CCCL_TYPE_VISIBILITY_DEFAULT default_domain
   }
 };
 
+//////////////////////////////////////////////////////////////////////////////////////////
+// get_domain
+_CCCL_GLOBAL_CONSTANT struct get_domain_t
+{
+  template <class _Env>
+  _CCCL_API constexpr auto operator()(const _Env& __env) const noexcept
+  {
+    if constexpr (__queryable_with<_Env, get_domain_t>)
+    {
+      static_assert(noexcept(__env.query(*this)));
+      return __env.query(*this);
+    }
+    else
+    {
+      return default_domain{};
+    }
+  }
+
+  _CCCL_API static constexpr auto query(const forwarding_query_t&) noexcept -> bool
+  {
+    return true;
+  }
+} get_domain{};
+
+template <class _Env>
+using __domain_of_t _CCCL_NODEBUG_ALIAS = __call_result_t<get_domain_t, _Env>;
+
 namespace __detail
 {
 // This function is used to determine the domain associated with a sender and
@@ -110,7 +139,7 @@ namespace __detail
 //   - If the environment has a scheduler, return its domain if any.
 // 4. Otherwise, return the default domain.
 template <class _GetScheduler, class _Env1, class _Env2 = _CUDA_STD_EXEC::prop<get_domain_t, default_domain>>
-_CCCL_TRIVIAL_API constexpr auto __domain_for() noexcept
+_CCCL_TRIVIAL_API constexpr auto __domain_for_impl() noexcept
 {
   if constexpr (__queryable_with<_Env1, get_domain_t>)
   {
@@ -124,19 +153,46 @@ _CCCL_TRIVIAL_API constexpr auto __domain_for() noexcept
     }
     else
     {
-      return __domain_for<get_scheduler_t, _Env2>();
+      return __domain_for_impl<get_scheduler_t, _Env2>();
     }
   }
   else
   {
-    return __domain_for<get_scheduler_t, _Env2>();
+    return __domain_for_impl<get_scheduler_t, _Env2>();
   }
 }
+
+template <class _Sndr, class... _Env>
+_CCCL_TRIVIAL_API constexpr auto __get_domain_special(_Sndr&& __sndr, const _Env&...) noexcept
+{
+  auto&& [__tag, __sched, __child] = static_cast<_Sndr&&>(__sndr);
+  if constexpr (_CUDA_VSTD::_IsSame<decltype(__tag), continues_on_t>::value)
+  {
+    return __detail::__domain_for_impl<get_completion_scheduler_t<set_value_t>, env_of_t<decltype(__child)>, _Env...>();
+  }
+  else
+  {
+    return get_domain(__sched);
+  }
+}
+
+template <class _Sndr, class... _Env>
+_CCCL_TRIVIAL_API constexpr auto __domain_for() noexcept
+{
+  if constexpr ((__sender_for<_Sndr, continues_on_t> || __sender_for<_Sndr, schedule_from_t>) && sizeof...(_Env) != 0)
+  {
+    return decltype(__detail::__get_domain_special(declval<_Sndr>(), declval<_Env>()...)){};
+  }
+  else
+  {
+    return __detail::__domain_for_impl<get_completion_scheduler_t<set_value_t>, env_of_t<_Sndr>, _Env...>();
+  }
+}
+
 } // namespace __detail
 
 template <class _Sndr, class... _Env>
-using domain_for_t _CCCL_NODEBUG_ALIAS =
-  decltype(__detail::__domain_for<get_completion_scheduler_t<set_value_t>, env_of_t<_Sndr>, _Env...>());
+using domain_for_t _CCCL_NODEBUG_ALIAS = decltype(__detail::__domain_for<_Sndr, _Env...>());
 
 } // namespace cuda::experimental::execution
 

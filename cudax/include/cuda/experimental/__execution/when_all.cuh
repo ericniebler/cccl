@@ -93,7 +93,7 @@ struct _CCCL_TYPE_VISIBILITY_DEFAULT when_all_t
 
     // TODO: only forward the "forwarding" queries
     template <class _Tag>
-    _CCCL_API auto query(_Tag) const noexcept -> __query_result_t<_Tag, env_of_t<__rcvr_t>>
+    _CCCL_API auto query(_Tag) const noexcept -> __query_result_t<env_of_t<__rcvr_t>, _Tag>
     {
       return execution::get_env(__state_.__rcvr_).query(_Tag());
     }
