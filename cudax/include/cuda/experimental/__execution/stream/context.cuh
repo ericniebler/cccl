@@ -76,9 +76,14 @@ struct _CCCL_TYPE_VISIBILITY_DEFAULT stream_context : private __immovable
   {
     using scheduler_concept = scheduler_t;
 
-    _CCCL_API bool operator==(const scheduler& __other) const noexcept
+    _CCCL_API friend bool operator==(scheduler const& __self, scheduler const& __other) noexcept
     {
-      return __stream_ref_ == __other.__stream_ref_;
+      return __self.__stream_ref_ == __other.__stream_ref_;
+    }
+
+    _CCCL_API friend bool operator!=(scheduler const& __self, scheduler const& __other) noexcept
+    {
+      return !(__self == __other);
     }
 
     _CCCL_API static constexpr auto query(get_forward_progress_guarantee_t) noexcept
@@ -154,7 +159,7 @@ struct _CCCL_TYPE_VISIBILITY_DEFAULT stream_context : private __immovable
   private:
     _CCCL_HOST_API void __host_start() noexcept
     {
-      __stream_invoke<<<1, 1, 0, __stream_ref_.get()>>>(set_value, __rcvr_ref{__rcvr_});
+      __stream_invoke<<<1, 1, 0, __stream_ref_.get()>>>(set_value, __rcvr_ref<_Rcvr>{__rcvr_});
       if (auto __status = cudaGetLastError(); __status != cudaSuccess)
       {
         set_error(static_cast<_Rcvr&&>(__rcvr_), __status);

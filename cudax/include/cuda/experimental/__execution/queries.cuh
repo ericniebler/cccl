@@ -205,29 +205,6 @@ _CCCL_GLOBAL_CONSTANT struct get_forward_progress_guarantee_t
   }
 } get_forward_progress_guarantee{};
 
-//////////////////////////////////////////////////////////////////////////////////////////
-// get_domain
-_CCCL_GLOBAL_CONSTANT struct get_domain_t
-{
-  _CCCL_EXEC_CHECK_DISABLE
-  template <class _Env>
-  [[nodiscard]] _CCCL_API constexpr auto operator()(const _Env& __env) const noexcept
-  {
-    if constexpr (__queryable_with<_Env, get_domain_t>)
-    {
-      static_assert(noexcept(__env.query(*this)));
-      return __env.query(*this);
-    }
-    else
-    {
-      return default_domain{};
-    }
-  }
-} get_domain{};
-
-template <class _Env>
-using __domain_of_t _CCCL_NODEBUG_ALIAS = __call_result_t<get_domain_t, _Env>;
-
 } // namespace cuda::experimental::execution
 
 #include <cuda/experimental/__execution/epilogue.cuh>

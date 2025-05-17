@@ -21,6 +21,8 @@
 #  pragma system_header
 #endif // no system header
 
+#include <cuda/std/__cccl/assert.h>
+#include <cuda/std/__concepts/same_as.h>
 #include <cuda/std/__memory/construct_at.h>
 #include <cuda/std/__new/launder.h>
 #include <cuda/std/__type_traits/decay.h>
@@ -111,8 +113,7 @@ public:
 
   _CCCL_EXEC_CHECK_DISABLE
   template <class _Ty, class... _As>
-  _CCCL_API auto __emplace(_As&&... __as) //
-    noexcept(__nothrow_constructible<_Ty, _As...>) -> _Ty&
+  _CCCL_API auto __emplace(_As&&... __as) noexcept(__nothrow_constructible<_Ty, _As...>) -> _Ty&
   {
     constexpr size_t __new_index = execution::__index_of<_Ty, _Ts...>();
     static_assert(__new_index != __npos, "Type not in variant");
@@ -125,8 +126,7 @@ public:
 
   _CCCL_EXEC_CHECK_DISABLE
   template <size_t _Ny, class... _As>
-  _CCCL_API auto __emplace_at(_As&&... __as) //
-    noexcept(__nothrow_constructible<__at<_Ny>, _As...>) -> __at<_Ny>&
+  _CCCL_API auto __emplace_at(_As&&... __as) noexcept(__nothrow_constructible<__at<_Ny>, _As...>) -> __at<_Ny>&
   {
     static_assert(_Ny < sizeof...(_Ts), "variant index is too large");
 
@@ -138,8 +138,8 @@ public:
 
   _CCCL_EXEC_CHECK_DISABLE
   template <class _Fn, class... _As>
-  _CCCL_API auto __emplace_from(_Fn&& __fn, _As&&... __as) //
-    noexcept(__nothrow_callable<_Fn, _As...>) -> __call_result_t<_Fn, _As...>&
+  _CCCL_API auto __emplace_from(_Fn&& __fn, _As&&... __as) noexcept(__nothrow_callable<_Fn, _As...>)
+    -> __call_result_t<_Fn, _As...>&
   {
     using __result_t _CCCL_NODEBUG_ALIAS = __call_result_t<_Fn, _As...>;
     constexpr size_t __new_index         = execution::__index_of<__result_t, _Ts...>();
@@ -153,8 +153,8 @@ public:
 
   _CCCL_EXEC_CHECK_DISABLE
   template <class _Fn, class _Self, class... _As>
-  _CCCL_API static void __visit(_Fn&& __fn, _Self&& __self, _As&&... __as) //
-    noexcept((__nothrow_callable<_Fn, _As..., __copy_cvref_t<_Self, _Ts>> && ...))
+  _CCCL_API static void __visit(_Fn&& __fn, _Self&& __self, _As&&... __as) noexcept(
+    (__nothrow_callable<_Fn, _As..., __copy_cvref_t<_Self, _Ts>> && ...))
   {
     // make this local in case destroying the sub-object destroys *this
     const auto index = __self.__index_;

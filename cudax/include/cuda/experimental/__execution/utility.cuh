@@ -24,6 +24,7 @@
 #include <cuda/std/__tuple_dir/ignore.h>
 #include <cuda/std/__type_traits/decay.h>
 #include <cuda/std/__type_traits/is_same.h>
+#include <cuda/std/__type_traits/type_list.h>
 #include <cuda/std/initializer_list>
 
 #include <cuda/experimental/__detail/utility.cuh>

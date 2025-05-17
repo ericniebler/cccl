@@ -22,10 +22,12 @@
 #endif // no system header
 
 #include <cuda/std/__execution/env.h>
+#include <cuda/std/__type_traits/is_callable.h>
 #include <cuda/std/__type_traits/is_nothrow_move_constructible.h>
 
 #include <cuda/experimental/__detail/utility.cuh>
 #include <cuda/experimental/__execution/fwd.cuh>
+#include <cuda/experimental/__execution/visit.cuh>
 
 #include <cuda/experimental/__execution/prologue.cuh>
 
@@ -35,6 +37,9 @@ namespace cuda::experimental::execution
 using _CUDA_STD_EXEC::__query_result_t;
 using _CUDA_STD_EXEC::__queryable_with;
 using _CUDA_STD_EXEC::env_of_t;
+using _CUDA_STD_EXEC::forwarding_query_t;
+using _CUDA_STD_EXEC::forwarding_query;
+using _CUDA_STD_EXEC::__forwarding_query;
 // NOLINTEND(misc-unused-using-decls)
 
 template <class _DomainOrTag, class... _Args>
@@ -79,7 +84,7 @@ struct _CCCL_TYPE_VISIBILITY_DEFAULT default_domain
   //! @return The result of transforming the sender with the given environment.
   _CCCL_EXEC_CHECK_DISABLE
   template <class _Sndr, class _Env>
-  _CCCL_TRIVIAL_API static constexpr auto transform_sender(_Sndr&& __sndr, const _Env& __env) noexcept(
+  [[nodiscard]] _CCCL_TRIVIAL_API static constexpr auto transform_sender(_Sndr&& __sndr, const _Env& __env) noexcept(
     noexcept(tag_of_t<_Sndr>{}.transform_sender(static_cast<_Sndr&&>(__sndr), __env)))
     -> __transform_sender_result_t<tag_of_t<_Sndr>, _Sndr, _Env>
   {
@@ -89,7 +94,7 @@ struct _CCCL_TYPE_VISIBILITY_DEFAULT default_domain
   //! @overload
   _CCCL_EXEC_CHECK_DISABLE
   template <class _Sndr>
-  _CCCL_TRIVIAL_API static constexpr auto
+  [[nodiscard]] _CCCL_TRIVIAL_API static constexpr auto
   transform_sender(_Sndr&& __sndr) noexcept(_CUDA_VSTD::is_nothrow_move_constructible_v<_Sndr>) -> _Sndr
   {
     // FUTURE TODO: add a transform for the split sender once we have a split sender
@@ -99,7 +104,7 @@ struct _CCCL_TYPE_VISIBILITY_DEFAULT default_domain
   //! @overload
   _CCCL_EXEC_CHECK_DISABLE
   template <class _Sndr>
-  _CCCL_TRIVIAL_API static constexpr auto
+  [[nodiscard]] _CCCL_TRIVIAL_API static constexpr auto
   transform_sender(_Sndr&& __sndr, _CUDA_VSTD::__ignore_t) noexcept(_CUDA_VSTD::is_nothrow_move_constructible_v<_Sndr>)
     -> _Sndr
   {
@@ -107,20 +112,37 @@ struct _CCCL_TYPE_VISIBILITY_DEFAULT default_domain
   }
 };
 
+//////////////////////////////////////////////////////////////////////////////////////////
+// get_domain
+_CCCL_GLOBAL_CONSTANT struct get_domain_t
+{
+  template <class _Env>
+  [[nodiscard]] _CCCL_API constexpr auto operator()(const _Env& __env) const noexcept
+  {
+    if constexpr (__queryable_with<_Env, get_domain_t>)
+    {
+      static_assert(noexcept(__env.query(*this)));
+      return __env.query(*this);
+    }
+    else
+    {
+      return default_domain{};
+    }
+  }
+
+  [[nodiscard]] _CCCL_API static constexpr auto query(const forwarding_query_t&) noexcept -> bool
+  {
+    return true;
+  }
+} get_domain{};
+
+template <class _Env>
+using __domain_of_t _CCCL_NODEBUG_ALIAS = _CUDA_VSTD::__call_result_t<get_domain_t, _Env>;
+
 namespace __detail
 {
-// This function is used to determine the domain associated with a sender and
-// (optionally), an environment. It uses clues from the sender and environment to deduce
-// where the sender will execute (on what scheduler), and what the domain of that
-// scheduler is. It proceeds as follows:
-// 1. If the sender attributes has a domain, return it.
-// 2. Otherwise, if the sender has a completion scheduler, return its domain if any.
-// 3. Otherwise, if an environment is provided:
-//   - If the environment has a domain, return it.
-//   - If the environment has a scheduler, return its domain if any.
-// 4. Otherwise, return the default domain.
 template <class _GetScheduler, class _Env1, class _Env2 = _CUDA_STD_EXEC::prop<get_domain_t, default_domain>>
-_CCCL_TRIVIAL_API constexpr auto __domain_for() noexcept
+_CCCL_TRIVIAL_API constexpr auto __default_domain_for() noexcept
 {
   if constexpr (__queryable_with<_Env1, get_domain_t>)
   {
@@ -134,19 +156,58 @@ _CCCL_TRIVIAL_API constexpr auto __domain_for() noexcept
     }
     else
     {
-      return __domain_for<get_scheduler_t, _Env2>();
+      return __detail::__default_domain_for<get_scheduler_t, _Env2>();
     }
   }
   else
   {
-    return __domain_for<get_scheduler_t, _Env2>();
+    return __detail::__default_domain_for<get_scheduler_t, _Env2>();
   }
 }
+
+// See https://wg21.link/P3718 (temporarily available at
+// https://isocpp.org/files/papers/D3718R0.html)
+template <class _Sndr, class... _Env>
+_CCCL_TRIVIAL_API constexpr auto __domain_for() noexcept
+{
+  if constexpr (__sender_for<_Sndr, schedule_from_t> && sizeof...(_Env) != 0)
+  {
+    [[maybe_unused]] auto __visitor =
+      [](_CUDA_VSTD::__ignore_t, _CUDA_VSTD::__ignore_t, auto&& __sch, _CUDA_VSTD::__ignore_t) {
+        return get_domain(__sch);
+      };
+    return __visit_result_t<decltype(__visitor), _Sndr, int&>{};
+  }
+  else if constexpr (__sender_for<_Sndr, continues_on_t> && sizeof...(_Env) != 0)
+  {
+    [[maybe_unused]] auto __visitor =
+      [](_CUDA_VSTD::__ignore_t, _CUDA_VSTD::__ignore_t, _CUDA_VSTD::__ignore_t, auto&& __child) {
+        using __child_t = decltype(__child);
+        return __detail::__default_domain_for<get_completion_scheduler_t<set_value_t>, env_of_t<__child_t>, _Env...>();
+      };
+    return __visit_result_t<decltype(__visitor), _Sndr, int&>{};
+  }
+  else
+  {
+    return __detail::__default_domain_for<get_completion_scheduler_t<set_value_t>, env_of_t<_Sndr>, _Env...>();
+  }
+  _CCCL_UNREACHABLE();
+}
+
 } // namespace __detail
 
+// This alias template is used to determine the domain associated with a sender and
+// (optionally), an environment. It uses clues from the sender and environment to deduce
+// where the sender will start execution (on what scheduler), and what the domain of that
+// scheduler is. It proceeds as follows:
+// 1. If the sender attributes has a domain, return it.
+// 2. Otherwise, if the sender has a completion scheduler, return its domain if any.
+// 3. Otherwise, if an environment is provided:
+//   - If the environment has a domain, return it.
+//   - If the environment has a scheduler, return its domain if any.
+// 4. Otherwise, return the default domain.
 template <class _Sndr, class... _Env>
-using domain_for_t _CCCL_NODEBUG_ALIAS =
-  decltype(__detail::__domain_for<get_completion_scheduler_t<set_value_t>, env_of_t<_Sndr>, _Env...>());
+using domain_for_t _CCCL_NODEBUG_ALIAS = decltype(__detail::__domain_for<_Sndr, _Env...>());
 
 } // namespace cuda::experimental::execution
 

@@ -42,9 +42,12 @@ namespace cuda::experimental
 namespace execution
 {
 // NOLINTBEGIN(misc-unused-using-decls)
+using _CUDA_STD_EXEC::__forwarding_query;
 using _CUDA_STD_EXEC::__unwrap_reference_t;
 using _CUDA_STD_EXEC::env;
 using _CUDA_STD_EXEC::env_of_t;
+using _CUDA_STD_EXEC::forwarding_query;
+using _CUDA_STD_EXEC::forwarding_query_t;
 using _CUDA_STD_EXEC::get_env;
 using _CUDA_STD_EXEC::get_env_t;
 using _CUDA_STD_EXEC::prop;
@@ -80,10 +83,10 @@ struct _CCCL_TYPE_VISIBILITY_DEFAULT __fwd_env_fn
   }
 
   template <class _Env>
-  [[nodiscard]] _CCCL_TRIVIAL_API constexpr auto operator()(__fwd_env_<_Env>&& __env) const noexcept
-    -> __fwd_env_<_Env>&&
+  [[nodiscard]] _CCCL_TRIVIAL_API constexpr auto operator()(__fwd_env_<_Env>&& __env) const
+    noexcept(__nothrow_movable<_Env>) -> __fwd_env_<_Env>
   {
-    return static_cast<_Env&&>(__env);
+    return static_cast<__fwd_env_<_Env>&&>(__env);
   }
 
   template <class _Env>
