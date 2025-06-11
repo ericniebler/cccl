@@ -340,7 +340,14 @@ struct __sndr_t
 template <class _Sndr>
 _CCCL_API constexpr auto __adapt(_Sndr __sndr, stream_ref __stream) -> decltype(auto)
 {
-  return __sndr_t<_Sndr>{{__stream, static_cast<_Sndr&&>(__sndr)}};
+  if constexpr (__is_specialization_of_v<_Sndr, __sndr_t>)
+  {
+    return _Sndr(static_cast<_Sndr&&>(__sndr));
+  }
+  else
+  {
+    return __sndr_t<_Sndr>{{__stream, static_cast<_Sndr&&>(__sndr)}};
+  }
 }
 
 template <class _Sndr>
