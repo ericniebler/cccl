@@ -89,7 +89,7 @@ struct _CCCL_TYPE_VISIBILITY_DEFAULT stream_scheduler
     using operation_state_concept = operation_state_t;
 
     _CCCL_EXEC_CHECK_DISABLE
-    _CCCL_API explicit __opstate_t(_Rcvr __rcvr, stream_ref __stream_ref) noexcept
+    _CCCL_API constexpr explicit __opstate_t(_Rcvr __rcvr, stream_ref __stream_ref) noexcept
         : __rcvr_{static_cast<_Rcvr&&>(__rcvr)}
         , __stream_{__stream_ref}
     {
@@ -130,7 +130,7 @@ struct _CCCL_TYPE_VISIBILITY_DEFAULT stream_scheduler
   {};
 
 public:
-  _CCCL_API explicit constexpr stream_scheduler(stream_ref __stream) noexcept
+  _CCCL_API constexpr explicit stream_scheduler(stream_ref __stream) noexcept
       : __stream_{__stream}
   {}
 
@@ -156,7 +156,7 @@ public:
     }
 
     template <class _Rcvr>
-    [[nodiscard]] _CCCL_API auto connect(_Rcvr __rcvr) const noexcept -> __opstate_t<_Rcvr>
+    [[nodiscard]] _CCCL_API constexpr auto connect(_Rcvr __rcvr) const noexcept -> __opstate_t<_Rcvr>
     {
       return __opstate_t<_Rcvr>{static_cast<_Rcvr&&>(__rcvr), __attrs_.__stream_};
     }
@@ -181,17 +181,19 @@ public:
     return forward_progress_guarantee::weakly_parallel;
   }
 
-  [[nodiscard]] _CCCL_API auto schedule() const noexcept -> __sndr_t
+  [[nodiscard]] _CCCL_API constexpr auto schedule() const noexcept -> __sndr_t
   {
     return __sndr_t{__stream_};
   }
 
-  [[nodiscard]] _CCCL_API friend bool operator==(const stream_scheduler& __lhs, const stream_scheduler& __rhs) noexcept
+  [[nodiscard]] _CCCL_API friend constexpr bool
+  operator==(const stream_scheduler& __lhs, const stream_scheduler& __rhs) noexcept
   {
     return __lhs.__stream_ == __rhs.__stream_;
   }
 
-  [[nodiscard]] _CCCL_API friend bool operator!=(const stream_scheduler& __lhs, const stream_scheduler& __rhs) noexcept
+  [[nodiscard]] _CCCL_API friend constexpr bool
+  operator!=(const stream_scheduler& __lhs, const stream_scheduler& __rhs) noexcept
   {
     return __lhs.__stream_ != __rhs.__stream_;
   }
