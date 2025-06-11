@@ -59,7 +59,7 @@ struct __partitioned_completions<__type_list<_ValueTuples...>, __type_list<_Erro
   using __value_types _CCCL_NODEBUG_ALIAS =
     _Variant<_CUDA_VSTD::__type_call1<_ValueTuples, _CUDA_VSTD::__type_quote<_Tuple>>...>;
 
-  template <template <class...> class _Variant, template <class> class _Transform = _CUDA_VSTD::__type_self_t>
+  template <template <class...> class _Variant, template <class...> class _Transform = _CUDA_VSTD::__type_self_t>
   using __error_types _CCCL_NODEBUG_ALIAS = _Variant<_Transform<_Errors>...>;
 
   template <template <class...> class _Variant, class _Type = set_stopped_t()>
@@ -139,7 +139,9 @@ template <class _Sndr, class _Env, template <class...> class _Tuple, template <c
 using value_types_of_t _CCCL_NODEBUG_ALIAS =
   __value_types<completion_signatures_of_t<_Sndr, _Env>, _Tuple, __type_try_quote<_Variant>::template __call>;
 
-template <class _Sigs, template <class...> class _Variant, template <class> class _Transform = _CUDA_VSTD::__type_self_t>
+template <class _Sigs,
+          template <class...> class _Variant,
+          template <class...> class _Transform = _CUDA_VSTD::__type_self_t>
 using __error_types _CCCL_NODEBUG_ALIAS =
   typename __partitioned_completions_of<_Sigs>::template __error_types<_Variant, _Transform>;
 
