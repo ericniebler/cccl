@@ -23,6 +23,7 @@
 
 #include <cuda/__stream/get_stream.h>
 
+#include <cuda/experimental/__detail/utility.cuh>
 #include <cuda/experimental/__device/device_ref.cuh>
 #include <cuda/experimental/__execution/stream/scheduler.cuh>
 #include <cuda/experimental/stream.cuh>
