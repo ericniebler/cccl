@@ -85,6 +85,33 @@ struct potentially_throwing
   }
 };
 
+struct non_default_constructible
+{
+  _CCCL_HOST_DEVICE constexpr explicit non_default_constructible(int value) noexcept
+      : value_(value)
+  {}
+
+  _CCCL_HOST_DEVICE friend constexpr bool
+  operator==(const non_default_constructible& a, const non_default_constructible& b) noexcept
+  {
+    return a.value_ == b.value_;
+  }
+
+  _CCCL_HOST_DEVICE friend constexpr bool
+  operator!=(const non_default_constructible& a, const non_default_constructible& b) noexcept
+  {
+    return a.value_ != b.value_;
+  }
+
+  friend std::ostream& operator<<(std::ostream& os, const non_default_constructible& self)
+  {
+    os << "non_default_constructible{" << self.value_ << "}";
+    return os;
+  }
+
+  int value_;
+};
+
 struct string
 {
   string() = default;
@@ -273,7 +300,7 @@ struct write_attrs_t::_sndr_t
   using sender_concept = cuda::experimental::execution::sender_t;
   using _attrs_t       = _CUDA_STD_EXEC::env<const Attrs&, _CUDA_STD_EXEC::env_of_t<Sndr>>;
 
-  [[nodiscard]] _CCCL_API auto get_env() const noexcept -> _attrs_t
+  [[nodiscard]] _CCCL_API constexpr auto get_env() const noexcept -> _attrs_t
   {
     return {_attrs_, _CUDA_STD_EXEC::get_env(_sndr_)};
   }

@@ -12,6 +12,10 @@
 #include <cuda/experimental/execution.cuh>
 
 // Then include the test helpers
+#include <thrust/equal.h>
+
+#include <cuda/experimental/container.cuh>
+
 #include <nv/target>
 
 #include "testing.cuh" // IWYU pragma: keep
@@ -111,6 +115,37 @@ void stream_ref_as_scheduler()
   printf("All done on the host! result = %d\n", i);
 }
 
+void bulk_on_stream_scheduler()
+{
+  cuda::experimental::device_ref _dev{0};
+  cudax::stream sctx{_dev};
+  auto sch = sctx.get_scheduler();
+
+  using _env_t = cudax::env_t<cuda::mr::device_accessible>;
+  _env_t env{cudax::device_memory_resource{_dev}, cuda::get_stream(sch), cudax_async::par_unseq};
+  cudax::async_device_buffer<int> buf{env, 1000, 40}; // a device buffer of 1000 integers, initialized to 40
+  cuda::std::span data{buf};
+
+  auto start = //
+    cudax_async::schedule(sch) // begin work on the GPU
+    | cudax_async::then([data] __host__ __device__() -> cuda::std::span<int> {
+        return data;
+      })
+    // enqueue a bulk kernel on the GPU
+    | cudax_async::bulk(cudax_async::par_unseq, 1000, [] __host__ __device__(int i, cuda::std::span<int> data) -> void {
+        CUDAX_CHECK(_is_on_device());
+        CUDAX_CHECK(i < data.size());
+        data[i] += 2;
+      });
+
+  cudax::async_device_buffer<int> expected{env, 1000, 42}; // a device buffer of 1000 integers, initialized to 42
+
+  // run the cudax_async, wait for it to finish, and get the result
+  cudax_async::sync_wait(std::move(start));
+
+  CHECK(thrust::equal(thrust::device, data.begin(), data.end(), expected.begin()));
+}
+
 // Test code is placed in separate functions to avoid an nvc++ issue with
 // extended lambdas in functions with internal linkage (as is the case
 // with C2H tests).
@@ -128,5 +163,10 @@ C2H_TEST("a simple use of the stream context", "[context][stream]")
 C2H_TEST("use stream_ref as a scheduler", "[context][stream]")
 {
   REQUIRE_NOTHROW(stream_ref_as_scheduler());
+}
+
+C2H_TEST("launch a bulk kernel", "[context][stream]")
+{
+  REQUIRE_NOTHROW(bulk_on_stream_scheduler());
 }
 } // namespace

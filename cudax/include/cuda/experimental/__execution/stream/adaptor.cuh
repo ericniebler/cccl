@@ -21,15 +21,9 @@
 #  pragma system_header
 #endif // no system header
 
-#include <cuda/atomic>
-#include <cuda/std/__exception/cuda_error.h>
-#include <cuda/std/__memory/addressof.h>
 #include <cuda/std/__memory/unique_ptr.h>
-#include <cuda/std/__tuple_dir/ignore.h>
 #include <cuda/std/__type_traits/is_same.h>
 #include <cuda/std/__type_traits/remove_cvref.h>
-#include <cuda/std/__type_traits/remove_reference.h>
-#include <cuda/std/__type_traits/type_list.h>
 #include <cuda/std/__utility/pod_tuple.h>
 
 #include <cuda/experimental/__detail/utility.cuh>
@@ -92,8 +86,9 @@ _CCCL_API static constexpr auto __with_cuda_error(_Completions __completions) no
   return __completions - __eptr_completion() + completion_signatures<set_error_t(cudaError_t)>{};
 }
 
-template <class _Rcvr, class _Variant>
-__launch_bounds__(1) __global__ void __host_complete_fn(__state_t<_Rcvr, _Variant>* __state)
+template <int _BlockThreads, class _Rcvr, class _Variant>
+_CCCL_VISIBILITY_HIDDEN __launch_bounds__(_BlockThreads) __global__
+  void __completion_kernel(__state_t<_Rcvr, _Variant>* __state)
 {
   _Variant::__visit(__results_visitor<_Rcvr>{__state->__rcvr_}, __state->__results_);
 }
@@ -165,16 +160,6 @@ struct __rcvr_t
   __state_t<_Rcvr, _Variant>* __state_;
 };
 
-template <class _Sndr>
-_CCCL_HOST_API auto __bulk_launch_config(const _Sndr& __sndr) noexcept
-{
-  constexpr int __block             = 256;
-  auto&& [__tag, __params, __child] = __sndr;
-  auto&& [__shape, __fn]            = __params;
-  const int __grid                  = (static_cast<int>(__shape) + __block - 1) / __block;
-  return experimental::make_config(block_dims<__block>, grid_dims(__grid));
-}
-
 template <class _CvSndr, class _Rcvr>
 struct __opstate_t
 {
@@ -229,6 +214,10 @@ private:
 
   _CCCL_HOST_API void __host_start() noexcept
   {
+    constexpr int __block_threads =
+      decltype(__launch_config_.dims)::static_count(experimental::thread, experimental::block);
+    static_assert(__block_threads != cuda::std::dynamic_extent);
+
     auto& __state       = __get_state();
     auto const __stream = __state.__state_.__stream_.get();
 
@@ -237,8 +226,8 @@ private:
     // start the child operation state on the host and launch a kernel to pass the results
     // to the receiver.
     execution::start(__state.__opstate_);
-    auto __status =
-      __detail::launch_impl(__stream, __launch_config_, &__host_complete_fn<_Rcvr, __results_t>, &__state.__state_);
+    auto __status = __detail::launch_impl(
+      __stream, __launch_config_, &__completion_kernel<__block_threads, _Rcvr, __results_t>, &__state.__state_);
     if (__status != cudaSuccess)
     {
       execution::set_error(static_cast<_Rcvr&&>(__state.__state_.__rcvr_), __status);
@@ -247,7 +236,11 @@ private:
 
   _CCCL_DEVICE_API void __device_start() noexcept
   {
-    [[maybe_unused]] auto* const __complete_fn = &__host_complete_fn<_Rcvr, __results_t>;
+    constexpr int __block_threads =
+      decltype(__launch_config_.dims)::static_count(experimental::thread, experimental::block);
+    static_assert(__block_threads != cuda::std::dynamic_extent);
+
+    [[maybe_unused]] auto* const __complete_fn = &__completion_kernel<__block_threads, _Rcvr, __results_t>;
     auto& __state                              = __get_state();
     __state.__state_.__complete_inline_        = true;
     execution::start(__state.__opstate_);
@@ -340,6 +333,7 @@ struct __sndr_t
 template <class _Sndr>
 _CCCL_API constexpr auto __adapt(_Sndr __sndr, stream_ref __stream) -> decltype(auto)
 {
+  // If the sender is already a specialization of __stream::__sndr_t, we can just return it.
   if constexpr (__is_specialization_of_v<_Sndr, __sndr_t>)
   {
     return _Sndr(static_cast<_Sndr&&>(__sndr));
