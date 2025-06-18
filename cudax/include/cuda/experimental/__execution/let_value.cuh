@@ -192,7 +192,7 @@ struct _CCCL_TYPE_VISIBILITY_DEFAULT _CCCL_PREFERRED_NAME(let_value_t) _CCCL_PRE
       if constexpr (!__decay_copyable<_Ts...>)
       {
         return invalid_completion_signature<_WHERE(_IN_ALGORITHM, _LetTag),
-                                            _WHAT(_ARGUMENTS_ARE_NOT_DECAY_COPYABLE),
+                                            _WHAT(_PREDECESSOR_RESULTS_ARE_NOT_DECAY_COPYABLE),
                                             _WITH_ARGUMENTS(_Ts...)>();
       }
       else if constexpr (!_CUDA_VSTD::__is_callable_v<_Fn, _CUDA_VSTD::decay_t<_Ts>&...>)

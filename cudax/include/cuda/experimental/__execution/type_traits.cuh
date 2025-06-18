@@ -59,6 +59,9 @@ using __decay_copyable_ _CCCL_NODEBUG_ALIAS = decltype(_CUDA_VSTD::decay_t<_Ty>(
 template <class... _As>
 inline constexpr bool __decay_copyable = (_CUDA_VSTD::is_constructible_v<_CUDA_VSTD::decay_t<_As>, _As> && ...);
 
+template <class... _As>
+using __decay_copyable_t _CCCL_NODEBUG_ALIAS = _CUDA_VSTD::bool_constant<__decay_copyable<_As...>>;
+
 #if _CCCL_DEVICE_COMPILATION() && !_CCCL_CUDA_COMPILER(NVHPC)
 template <class _Fn, class... _As>
 inline constexpr bool __nothrow_callable = true;

@@ -50,6 +50,17 @@ struct __immovable
   _CCCL_IMMOVABLE_OPSTATE(__immovable);
 };
 
+// Classes can inherit from this type to become move-only.
+struct __move_only
+{
+  _CCCL_HIDE_FROM_ABI __move_only()                         = default;
+  _CCCL_HIDE_FROM_ABI __move_only(__move_only&&)            = default;
+  _CCCL_HIDE_FROM_ABI __move_only& operator=(__move_only&&) = default;
+
+  _CCCL_HIDE_FROM_ABI __move_only(const __move_only&)            = delete;
+  _CCCL_HIDE_FROM_ABI __move_only& operator=(const __move_only&) = delete;
+};
+
 template <class... _Types>
 struct _CCCL_DECLSPEC_EMPTY_BASES __inherit : _Types...
 {};

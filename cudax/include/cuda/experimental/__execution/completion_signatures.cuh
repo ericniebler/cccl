@@ -23,6 +23,7 @@
 
 #include <cuda/std/__tuple_dir/ignore.h>
 #include <cuda/std/__type_traits/conditional.h>
+#include <cuda/std/__type_traits/conjunction.h>
 #include <cuda/std/__type_traits/integral_constant.h>
 #include <cuda/std/__type_traits/is_callable.h>
 #include <cuda/std/__type_traits/is_empty.h>
@@ -326,22 +327,6 @@ using __set_error_sig_t = set_error_t(_Error);
 template <class... _Sigs>
 struct _CCCL_TYPE_VISIBILITY_DEFAULT completion_signatures
 {
-  //! \brief Partitioned view of the completion signatures for efficient querying.
-  struct __partitioned
-  {
-    // This is defined in a nested struct to avoid computing these types if they are not
-    // needed.
-    using type _CCCL_NODEBUG_ALIAS = __partition_completion_signatures_t<_Sigs...>;
-  };
-
-  //! \brief Type set view of the completion signatures for set operations.
-  struct __type_set
-  {
-    // This is defined in a nested struct to avoid computing this type if it is not
-    // needed.
-    using type _CCCL_NODEBUG_ALIAS = _CUDA_VSTD::__make_type_set<_Sigs...>;
-  };
-
   //! \brief Applies a metafunction to each signature and collects the results.
   //! \tparam _Fn The metafunction to apply.
   //! \tparam _Continuation The template to collect results into.
@@ -359,6 +344,30 @@ struct _CCCL_TYPE_VISIBILITY_DEFAULT completion_signatures
   //! \tparam _More Additional arguments to pass.
   template <class _Fn, class... _More>
   using __call _CCCL_NODEBUG_ALIAS = _CUDA_VSTD::__type_call<_Fn, _More..., _Sigs...>;
+
+  //! \brief Partitioned view of the completion signatures for efficient querying.
+  struct __partitioned
+  {
+    // This is defined in a nested struct to avoid computing these types if they are not
+    // needed.
+    using type _CCCL_NODEBUG_ALIAS = __partition_completion_signatures_t<_Sigs...>;
+  };
+
+  //! \brief Type set view of the completion signatures for set operations.
+  struct __type_set
+  {
+    // This is defined in a nested struct to avoid computing this type if it is not
+    // needed.
+    using type _CCCL_NODEBUG_ALIAS = _CUDA_VSTD::__make_type_set<_Sigs...>;
+  };
+
+  //! \brief Type set view of the completion signatures for set operations.
+  struct __decay_copyable : __transform_q<__decay_copyable_t, _CUDA_VSTD::_And>
+  {};
+
+  //! \brief Type set view of the completion signatures for set operations.
+  struct __nothrow_decay_copyable : __transform_q<__nothrow_decay_copyable_t, _CUDA_VSTD::_And>
+  {};
 
   //! \brief Default constructor.
   _CCCL_HIDE_FROM_ABI constexpr completion_signatures() = default;

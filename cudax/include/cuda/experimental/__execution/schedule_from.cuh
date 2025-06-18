@@ -56,7 +56,7 @@ struct __decay_args
     if constexpr (!__decay_copyable<_Ts...>)
     {
       return invalid_completion_signature<_WHERE(_IN_ALGORITHM, schedule_from_t),
-                                          _WHAT(_ARGUMENTS_ARE_NOT_DECAY_COPYABLE),
+                                          _WHAT(_PREDECESSOR_RESULTS_ARE_NOT_DECAY_COPYABLE),
                                           _WITH_ARGUMENTS(_Ts...)>();
     }
     else if constexpr (!__nothrow_decay_copyable<_Ts...>)
