@@ -23,6 +23,7 @@
 #include <cuda/std/__memory/addressof.h>
 #include <cuda/std/__memory/construct_at.h>
 #include <cuda/std/__new/launder.h>
+#include <cuda/std/__type_traits/decay.h>
 #include <cuda/std/__type_traits/is_callable.h>
 #include <cuda/std/__type_traits/is_reference.h>
 #include <cuda/std/__utility/declval.h>
@@ -118,10 +119,11 @@ struct _CCCL_TYPE_VISIBILITY_DEFAULT __device_transform_t
   // Types that want to customize `device_transform` should define overloads of
   // cuda_device_transform that are find-able by ADL.
   template <typename _Arg>
-  using __transform_result_t = decltype(cuda_device_transform(::cuda::stream_ref{}, _CUDA_VSTD::declval<_Arg>()));
+  using __transform_result_t =
+    __remove_rvalue_reference_t<decltype(cuda_device_transform(::cuda::stream_ref{}, _CUDA_VSTD::declval<_Arg>()))>;
 
   template <typename _Arg>
-  using __relocatable_value_t = decltype(_CUDA_VSTD::declval<_Arg>().relocatable_value());
+  using __relocatable_value_t = __remove_rvalue_reference_t<decltype(_CUDA_VSTD::declval<_Arg>().relocatable_value())>;
 
   // The use of `__storage_for` here is to move the destruction of the object returned from
   // cuda_device_transform into the caller's stack frame. Objects created for default arguments
