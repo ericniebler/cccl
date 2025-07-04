@@ -40,7 +40,9 @@ using __as_span_t = _CUDA_VSTD::span<_CUDA_VSTD::remove_reference_t<_CUDA_VRANGE
 //! @brief A concept that checks if the type can be converted to a `cuda::std::span`.
 //! The type must be a contiguous range.
 template <typename _Tp>
-_CCCL_CONCEPT __spannable = _CUDA_VRANGES::contiguous_range<_Tp> && _CUDA_VSTD::convertible_to<_Tp, __as_span_t<_Tp>>;
+_CCCL_CONCEPT __spannable = _CCCL_REQUIRES_EXPR((_Tp))( //
+  requires(_CUDA_VRANGES::contiguous_range<_Tp>), //
+  requires(_CUDA_VSTD::convertible_to<_Tp, __as_span_t<_Tp>>));
 
 template <typename _Tp>
 using __as_mdspan_t =
