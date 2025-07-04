@@ -24,6 +24,7 @@
 #include <cuda/std/__type_traits/is_callable.h>
 #include <cuda/std/__type_traits/type_list.h>
 #include <cuda/std/__utility/declval.h>
+#include <cuda/std/__utility/move.h>
 
 #include <cuda/experimental/__detail/type_traits.cuh>
 
@@ -47,23 +48,23 @@ using _CUDA_VSTD::declval;
 // NOLINTEND(misc-unused-using-decls)
 
 // Classes can inherit from this type to become immovable.
-struct __immovable
+struct _CCCL_TYPE_VISIBILITY_DEFAULT __immovable
 {
   _CCCL_HIDE_FROM_ABI __immovable() = default;
   _CCCL_IMMOVABLE_OPSTATE(__immovable);
 };
 
 template <class... _Types>
-struct _CCCL_DECLSPEC_EMPTY_BASES __inherit : _Types...
+struct _CCCL_TYPE_VISIBILITY_DEFAULT _CCCL_DECLSPEC_EMPTY_BASES __inherit : _Types...
 {};
 
 template <class _Fn>
-struct __emplace_from
+struct _CCCL_TYPE_VISIBILITY_DEFAULT __emplace_from
 {
   using type = _CUDA_VSTD::__call_result_t<_Fn>;
 
   _CCCL_EXEC_CHECK_DISABLE
-  _CCCL_API constexpr operator type() && noexcept(__nothrow_callable<_Fn>)
+  [[nodiscard]] _CCCL_API constexpr operator type() && noexcept(__nothrow_callable<_Fn>)
   {
     return _CCCL_MOVE(__fn)();
   }
@@ -72,16 +73,18 @@ struct __emplace_from
 };
 
 template <class _Fn>
-__emplace_from(_Fn) -> __emplace_from<_Fn>;
+_CCCL_HOST_DEVICE __emplace_from(_Fn) -> __emplace_from<_Fn>;
 
-struct no_init_t
+struct _CCCL_TYPE_VISIBILITY_DEFAULT no_init_t
 {
-  explicit no_init_t() = default;
+  _CCCL_HIDE_FROM_ABI explicit no_init_t() = default;
 };
 
 _CCCL_GLOBAL_CONSTANT no_init_t no_init{};
 
 using uninit_t CCCL_DEPRECATED_BECAUSE("Use cuda::experimental::no_init_t instead") = no_init_t;
+
+// TODO: CCCL_DEPRECATED_BECAUSE("Use cuda::experimental::no_init instead")
 _CCCL_GLOBAL_CONSTANT no_init_t uninit{};
 } // namespace cuda::experimental
 
