@@ -21,8 +21,11 @@
 #  pragma system_header
 #endif // no system header
 
+#include <cuda/std/__type_traits/is_callable.h>
 #include <cuda/std/__type_traits/type_list.h>
 #include <cuda/std/__utility/declval.h>
+
+#include <cuda/experimental/__detail/type_traits.cuh>
 
 #include <cuda/std/__cccl/prologue.h>
 
@@ -54,11 +57,22 @@ template <class... _Types>
 struct _CCCL_DECLSPEC_EMPTY_BASES __inherit : _Types...
 {};
 
-template <class _Type, template <class...> class _Template>
-inline constexpr bool __is_specialization_of_v = false;
+template <class _Fn>
+struct __emplace_from
+{
+  using type = _CUDA_VSTD::__call_result_t<_Fn>;
 
-template <template <class...> class _Template, class... _Args>
-inline constexpr bool __is_specialization_of_v<_Template<_Args...>, _Template> = true;
+  _CCCL_EXEC_CHECK_DISABLE
+  _CCCL_API constexpr operator type() && noexcept(__nothrow_callable<_Fn>)
+  {
+    return _CCCL_MOVE(__fn)();
+  }
+
+  _Fn __fn;
+};
+
+template <class _Fn>
+__emplace_from(_Fn) -> __emplace_from<_Fn>;
 
 struct no_init_t
 {

@@ -21,16 +21,18 @@
 #endif // no system header
 
 #include <cuda/std/__memory/addressof.h>
+#include <cuda/std/__new/launder.h>
 #include <cuda/std/__type_traits/add_pointer.h>
 #include <cuda/std/__type_traits/decay.h>
 #include <cuda/std/__type_traits/is_callable.h>
 #include <cuda/std/__type_traits/is_reference.h>
 #include <cuda/std/__utility/declval.h>
 #include <cuda/std/__utility/forward.h>
+#include <cuda/std/__utility/move.h>
 #include <cuda/stream_ref>
 
+#include <cuda/experimental/__detail/type_traits.cuh>
 #include <cuda/experimental/__detail/utility.cuh>
-#include <cuda/experimental/__execution/type_traits.cuh>
 
 #include <cuda/std/__cccl/prologue.h>
 
@@ -40,7 +42,7 @@ namespace __detail
 {
 // This function turns rvalues into prvalues and leaves lvalues as is.
 template <typename _Tp>
-_CCCL_API constexpr auto __ixnay_xvalue(_Tp&& __value) noexcept(execution::__nothrow_movable<_Tp>) -> _Tp
+_CCCL_API constexpr auto __ixnay_xvalue(_Tp&& __value) noexcept(__nothrow_movable<_Tp>) -> _Tp
 {
   return _CUDA_VSTD::forward<_Tp>(__value);
 }
@@ -73,28 +75,36 @@ struct __device_transform_t
 {
   // This is used to insert an object into the caller's stack frame.
   template <class _Arg, bool _IsReference = _CUDA_VSTD::is_reference_v<_Arg>>
-  union __storage_for
+  struct __storage_for
   {
-    __storage_for() noexcept {}
+    constexpr __storage_for() noexcept {}
 
     ~__storage_for()
     {
-      __value.~_Arg();
+      if (__engaged)
+      {
+        __value.~_Arg();
+      }
     }
 
-    auto __emplace(_Arg&& __arg) noexcept(execution::__nothrow_movable<_Arg>) -> _Arg&&
+    template <class... _OtherArgs>
+    auto __emplace(_OtherArgs&&... __arg) noexcept(__nothrow_constructible<_Arg, _OtherArgs...>) -> _Arg&&
     {
-      // This is a placement new, so we don't need to use `new` here.
-      ::new (_CUDA_VSTD::addressof(__value)) _Arg(_CUDA_VSTD::forward<_Arg>(__arg));
-      return _CUDA_VSTD::forward<_Arg>(__value);
+      _Arg* __ptr = ::new (_CUDA_VSTD::addressof(__value)) _Arg(_CUDA_VSTD::forward<_OtherArgs>(__arg)...);
+      __engaged   = true;
+      return _CCCL_MOVE(*_CUDA_VSTD::launder(__ptr));
     }
 
-    _Arg __value;
+    union
+    {
+      _Arg __value;
+    };
+    bool __engaged = false;
   };
 
   // No need to store reference types since they are not ephemeral.
   template <class _Arg>
-  union __storage_for<_Arg, true>
+  struct __storage_for<_Arg, true>
   {
     auto __emplace(_Arg __arg) noexcept -> _Arg
     {
@@ -135,23 +145,27 @@ struct __device_transform_t
                                 _Arg&& __arg,
                                 __storage_for<__transform_result_t<_Arg>> __storage = {}) const -> decltype(auto)
   {
-    static_assert(noexcept(__storage.__emplace(cuda_device_transform(__stream, _CUDA_VSTD::forward<_Arg>(__arg)))));
-
     // Calls to cuda_device_transform are intentionally unqualified so as to use ADL.
-    if constexpr (_CUDA_VSTD::_IsValidExpansion<__relocatable_value_t, __transform_result_t<_Arg>>::value)
+    if constexpr (__is_instantiable_with_v<__relocatable_value_t, __transform_result_t<_Arg>>)
     {
-      return __storage.__emplace(cuda_device_transform(__stream, _CUDA_VSTD::forward<_Arg>(__arg))).relocatable_value();
+      return __storage
+        .__emplace(__emplace_from{[&] {
+          return cuda_device_transform(__stream, _CUDA_VSTD::forward<_Arg>(__arg));
+        }})
+        .relocatable_value();
     }
     else
     {
-      return __storage.__emplace(cuda_device_transform(__stream, _CUDA_VSTD::forward<_Arg>(__arg)));
+      return __storage.__emplace(__emplace_from{[&] {
+        return cuda_device_transform(__stream, _CUDA_VSTD::forward<_Arg>(__arg));
+      }});
     }
   }
 
   template <typename _Arg>
   [[nodiscard]] auto operator()(_CUDA_VSTD::__ignore_t, _Arg&& __arg) const -> decltype(auto)
   {
-    if constexpr (_CUDA_VSTD::_IsValidExpansion<__relocatable_value_t, _Arg>::value)
+    if constexpr (__is_instantiable_with_v<__relocatable_value_t, _Arg>)
     {
       return _CUDA_VSTD::forward<_Arg>(__arg).relocatable_value();
     }
