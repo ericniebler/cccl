@@ -24,6 +24,8 @@
 #include <cuda/std/__iterator/iterator_traits.h>
 #include <cuda/std/__utility/exchange.h>
 
+#include <cuda/experimental/__execution/fwd.cuh>
+
 #include <cuda/experimental/__execution/prologue.cuh>
 
 namespace cuda::experimental::execution
@@ -59,6 +61,11 @@ public:
   {
     _Item* __new_head = nullptr;
     _Item* __new_tail = __list;
+
+    if (__list != nullptr)
+    {
+      __debug_printf("Reversing intrusive queue with head %p and next %p", __list, &(__list->*_Next));
+    }
 
     while (__list != nullptr)
     {

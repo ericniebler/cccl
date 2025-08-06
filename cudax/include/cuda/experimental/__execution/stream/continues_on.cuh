@@ -45,26 +45,31 @@ namespace cuda::experimental::execution
 {
 namespace __stream
 {
+// Transition from the GPU to the CPU domain
 struct __continues_on_t
 {
-  // Transition from the GPU to the CPU domain
+  // This receiver gets connected to the adapted sender (see stream/adaptor.cuh). Its
+  // set_* members will be called from the device, but the receiver holds a reference to
+  // the parent's receiver stored in unregistered host memory. As a result, the set_*
+  // members are no-ops. Instead, the parent's receiver will be completed on the host by
+  // the __opstate_t's host callback.
   template <class _Rcvr>
-  struct _CCCL_TYPE_VISIBILITY_DEFAULT __rcvr_t
+  struct _CCCL_TYPE_VISIBILITY_DEFAULT __rcvr1_t
   {
     using receiver_concept = receiver_t;
 
     template <class... _Values>
-    _CCCL_API constexpr void set_value(_Values&&...) noexcept
+    _CCCL_API static constexpr void set_value(_Values&&...) noexcept
     {
       // no-op
     }
 
-    _CCCL_API constexpr void set_error(_CUDA_VSTD::__ignore_t) noexcept
+    _CCCL_API static constexpr void set_error(_CUDA_VSTD::__ignore_t) noexcept
     {
       // no-op
     }
 
-    _CCCL_API constexpr void set_stopped() noexcept
+    _CCCL_API static constexpr void set_stopped() noexcept
     {
       // no-op
     }
@@ -78,38 +83,90 @@ struct __continues_on_t
   };
 
   // This opstate will be stored in host memory.
-  template <class _Sndr, class _Rcvr>
+  template <class _Sndr, class _Rcvr, class _DelegationScheduler>
   struct _CCCL_TYPE_VISIBILITY_DEFAULT __opstate_t
   {
     using operation_state_concept = operation_state_t;
-    using __env_t                 = __fwd_env_t<env_of_t<_Rcvr>>;
 
-    _CCCL_API constexpr explicit __opstate_t(_Sndr&& __sndr, _Rcvr __rcvr)
+    // This receiver gets connected to the delegation scheduler sender. _Rcvr is a
+    // schedule_from(sch, sndr) receiver that will stash the results of the sndr
+    // into the schedule_from opstate and then schedule the completion on `sch`.
+    // We use the delegation scheduler to ensure that the `schedule(sch)` operation
+    // is executed on the host, and not on the GPU.
+    struct __rcvr2_t
+    {
+      using receiver_concept = receiver_t;
+
+      _CCCL_API constexpr void set_value() noexcept
+      {
+        // __opstate_->__opstate1_ is an instance of __stream::__opstate_t, and it has a
+        // __continue member function that will pass the results of the child sender to
+        // the receiver on the host.
+        __opstate_->__opstate1_.__continue(__opstate_->__rcvr_);
+      }
+
+      template <class _Error>
+      _CCCL_API constexpr void set_error(_Error&& __err) noexcept
+      {
+        execution::set_error(static_cast<_Rcvr&&>(__opstate_->__rcvr_), static_cast<_Error&&>(__err));
+      }
+
+      _CCCL_API constexpr void set_stopped() noexcept
+      {
+        execution::set_stopped(static_cast<_Rcvr&&>(__opstate_->__rcvr_));
+      }
+
+      [[nodiscard]] _CCCL_API constexpr auto get_env() const noexcept -> __fwd_env_t<env_of_t<_Rcvr>>
+      {
+        return __fwd_env(execution::get_env(__opstate_->__rcvr_));
+      }
+
+      __opstate_t* __opstate_;
+    };
+
+    _CCCL_API constexpr explicit __opstate_t(
+      _Sndr&& __sndr, _Rcvr __rcvr, _DelegationScheduler __delegation_scheduler) noexcept
         : __rcvr_(static_cast<_Rcvr&&>(__rcvr))
         , __stream_(__get_stream(__sndr, execution::get_env(__rcvr_)))
-        , __opstate_(execution::connect(static_cast<_Sndr&&>(__sndr), __rcvr_t<_Rcvr>{__rcvr_}))
+        , __opstate1_(execution::connect(static_cast<_Sndr&&>(__sndr), __rcvr1_t<_Rcvr>{__rcvr_}))
+        , __opstate2_(execution::connect(execution::schedule(__delegation_scheduler), __rcvr2_t{this}))
     {}
 
     _CCCL_IMMOVABLE(__opstate_t);
 
-    _CCCL_HOST_API void start() noexcept
+    _CCCL_HOST_API static void CUDART_CB
+    __host_callback(cudaStream_t, cudaError_t const __status, void* const __pv) noexcept
     {
-      execution::start(__opstate_);
-      if (auto __status = ::cudaStreamSynchronize(__stream_.get()); __status != ::cudaSuccess)
+      // This function is called from a host thread managed by the CUDA runtime. Calls to
+      // CUDA runtime APIs from this thread are not allowed, so we need to get off of this
+      // thread ASAP. We do this by starting the __opstate2_ which puts the continuation
+      // on the delegation scheduler's queue (usually the run_loop in sync_wait).
+      auto* __self = static_cast<__opstate_t*>(__pv);
+      if (__status != cudaSuccess)
       {
-        execution::set_error(static_cast<_Rcvr&&>(__rcvr_), cudaError_t(__status));
+        // BUGBUG: execute this on the delegation scheduler as well:
+        execution::set_error(static_cast<_Rcvr&&>(__self->__rcvr_), cudaError_t(__status));
       }
       else
       {
-        // __opstate_ is an instance of __stream::__opstate_t, and it has a __set_results
-        // member function that will pass the results to the receiver on the host.
-        __opstate_.__set_results(__rcvr_);
+        execution::start(__self->__opstate2_);
+      }
+    }
+
+    _CCCL_HOST_API void start() noexcept
+    {
+      execution::start(__opstate1_);
+      auto const __status = ::cudaStreamAddCallback(__stream_.get(), &__host_callback, this, 0);
+      if (__status != ::cudaSuccess)
+      {
+        execution::set_error(static_cast<_Rcvr&&>(__rcvr_), cudaError_t(__status));
       }
     }
 
     _Rcvr __rcvr_;
     stream_ref __stream_;
-    connect_result_t<_Sndr, __rcvr_t<_Rcvr>> __opstate_;
+    connect_result_t<_Sndr, __rcvr1_t<_Rcvr>> __opstate1_;
+    connect_result_t<schedule_result_t<_DelegationScheduler>, __rcvr2_t> __opstate2_;
   };
 
   struct _CCCL_TYPE_VISIBILITY_DEFAULT __thunk_t
@@ -120,22 +177,39 @@ struct __continues_on_t
   {
     using sender_concept = sender_t;
 
-    template <class _Self, class... _Env>
+    template <class _Self, class _Env>
     [[nodiscard]] _CCCL_API static _CCCL_CONSTEVAL auto get_completion_signatures()
     {
-      return execution::get_child_completion_signatures<_Self, _Sndr, _Env...>();
+      using __sch_t = _CUDA_VSTD::__call_result_t<get_delegation_scheduler_t, _Env>;
+      _CUDAX_LET_COMPLETIONS(
+        auto(__child_completions) = execution::get_child_completion_signatures<_Self, _Sndr, _Env>())
+      {
+        _CUDAX_LET_COMPLETIONS(auto(__delegation_completions) =
+                                 execution::get_completion_signatures<schedule_result_t<__sch_t>, __fwd_env_t<_Env>>())
+        {
+          // The child sender's completion signatures are extended with the delegation scheduler's
+          // completion signatures.
+          return __child_completions + (__delegation_completions - completion_signatures<set_value_t()>{})
+               + completion_signatures<set_error_t(cudaError_t)>{};
+        }
+      }
+      _CCCL_UNREACHABLE();
     }
 
     template <class _Rcvr>
-    [[nodiscard]] _CCCL_API constexpr auto connect(_Rcvr __rcvr) && -> __opstate_t<_Sndr, _Rcvr>
+    [[nodiscard]] _CCCL_API constexpr auto connect(_Rcvr __rcvr) &&
     {
-      return __opstate_t<_Sndr, _Rcvr>{static_cast<_Sndr&&>(__sndr_), static_cast<_Rcvr&&>(__rcvr)};
+      auto __sch    = get_delegation_scheduler(execution::get_env(__rcvr));
+      using __sch_t = decltype(__sch);
+      return __opstate_t<_Sndr, _Rcvr, __sch_t>{static_cast<_Sndr&&>(__sndr_), static_cast<_Rcvr&&>(__rcvr), __sch};
     }
 
     template <class _Rcvr>
-    [[nodiscard]] _CCCL_API constexpr auto connect(_Rcvr __rcvr) const& -> __opstate_t<const _Sndr&, _Rcvr>
+    [[nodiscard]] _CCCL_API constexpr auto connect(_Rcvr __rcvr) const&
     {
-      return __opstate_t<const _Sndr&, _Rcvr>{__sndr_, static_cast<_Rcvr&&>(__rcvr)};
+      auto __sch    = get_delegation_scheduler(execution::get_env(__rcvr));
+      using __sch_t = decltype(__sch);
+      return __opstate_t<const _Sndr&, _Rcvr, __sch_t>{__sndr_, static_cast<_Rcvr&&>(__rcvr), __sch};
     }
 
     [[nodiscard]] _CCCL_API constexpr auto get_env() const noexcept -> env_of_t<_Sndr>
@@ -173,6 +247,11 @@ struct __continues_on_t
 
 template <>
 struct stream_domain::__apply_t<continues_on_t> : __stream::__continues_on_t
+{};
+
+// The stream continues_on sender should not be wrapped in an adaptor.
+template <>
+struct stream_domain::__apply_t<__stream::__continues_on_t::__thunk_t> : stream_domain::__apply_passthru_t
 {};
 
 template <class _Sndr>

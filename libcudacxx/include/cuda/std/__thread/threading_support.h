@@ -82,16 +82,16 @@ _CCCL_API inline bool __cccl_thread_poll_with_backoff(
     {
       return false;
     }
-    _CUDA_VSTD::chrono::nanoseconds const __step = __elapsed / 4;
-    if (__step >= _CUDA_VSTD::chrono::milliseconds(1))
-    {
-      _CUDA_VSTD::__cccl_thread_sleep_for(_CUDA_VSTD::chrono::milliseconds(1));
-    }
-    else if (__step >= _CUDA_VSTD::chrono::microseconds(10))
-    {
-      _CUDA_VSTD::__cccl_thread_sleep_for(__step);
-    }
-    else
+    // _CUDA_VSTD::chrono::nanoseconds const __step = __elapsed / 4;
+    // if (__step >= _CUDA_VSTD::chrono::milliseconds(1))
+    // {
+    //   _CUDA_VSTD::__cccl_thread_sleep_for(_CUDA_VSTD::chrono::milliseconds(1));
+    // }
+    // else if (__step >= _CUDA_VSTD::chrono::microseconds(10))
+    // {
+    //   _CUDA_VSTD::__cccl_thread_sleep_for(__step);
+    // }
+    // else
     {
       _CUDA_VSTD::__cccl_thread_yield();
     }

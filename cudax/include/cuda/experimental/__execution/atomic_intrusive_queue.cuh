@@ -23,7 +23,11 @@
 
 #include <cuda/std/atomic>
 
+#include <cuda/experimental/__execution/fwd.cuh>
 #include <cuda/experimental/__execution/intrusive_queue.cuh>
+#include <cuda/experimental/__execution/utility.cuh>
+
+#include <atomic> // IWYU pragma: keep
 
 #include <cuda/experimental/__execution/prologue.cuh>
 
@@ -39,42 +43,61 @@ class alignas(64) __atomic_intrusive_queue<_NextPtr>
 public:
   _CCCL_API auto push(_Tp* __node) noexcept -> bool
   {
+    // _CCCL_ASSERT(!__is_on_device(), "should not be called on device");
     _CCCL_ASSERT(__node != nullptr, "Cannot push a null pointer to the queue");
-    _Tp* __old_head = __head_.load(_CUDA_VSTD::memory_order_relaxed);
+    _Tp* __old_head = __head_.load(); //_CUDA_VSTD::memory_order_relaxed);
     do
     {
       __node->*_NextPtr = __old_head;
-    } while (!__head_.compare_exchange_weak(__old_head, __node, _CUDA_VSTD::memory_order_acq_rel));
+    } while (!__head_.compare_exchange_weak(__old_head, __node)); //, _CUDA_VSTD::memory_order_acq_rel));
+
+    // _CUDA_VSTD::atomic_thread_fence(_CUDA_VSTD::memory_order_seq_cst);
 
     // If the queue was empty before, we notify the consumer thread that there is now an
     // item available. If the queue was not empty, we do not notify, because the consumer
     // thread has already been notified.
     if (__old_head != nullptr)
     {
+      __debug_printf("Added item to queue without notifying consumer");
       return false;
     }
 
     // There can be only one consumer thread, so we can use notify_one here instead of
     // notify_all:
-    __head_.notify_one();
+    // __debug_printf("Notifying consumer thread that an item is available, atomic = %p, memory kind = %s",
+    //                (void*) &__head_,
+    //                execution::__memory_type_name(this));
+    __debug_printf("Notifying consumer thread that an item is available, atomic = %p", (void*) &__head_);
+    __head_.notify_all();
+    // _CUDA_VSTD::atomic_thread_fence(_CUDA_VSTD::memory_order_seq_cst);
     return true;
   }
 
   _CCCL_API void wait_for_item() noexcept
   {
+    _CCCL_ASSERT(!__is_on_device(), "should not be called on device");
+    // _CUDA_VSTD::atomic_thread_fence(_CUDA_VSTD::memory_order_seq_cst);
     // Wait until the queue has an item in it:
+    __debug_printf(
+      "waiting for item, atomic = %p, memory kind = %s", (void*) &__head_, execution::__memory_type_name(this));
     __head_.wait(nullptr);
+    //_CUDA_VSTD::atomic_thread_fence(_CUDA_VSTD::memory_order_seq_cst);
   }
 
   [[nodiscard]]
   _CCCL_API auto pop_all() noexcept -> __intrusive_queue<_NextPtr>
   {
-    auto* const __list = __head_.exchange(nullptr, _CUDA_VSTD::memory_order_acquire);
+    auto* const __list = __head_.exchange(nullptr); //, _CUDA_VSTD::memory_order_acq_rel);
     return __intrusive_queue<_NextPtr>::make_reversed(__list);
   }
 
 private:
+#ifdef __CUDA_ARCH__
   _CUDA_VSTD::atomic<_Tp*> __head_{nullptr};
+#else
+  ::std::atomic<_Tp*> __head_{nullptr};
+#endif
+  // _CUDA_VSTD::atomic<_Tp*> __head_{nullptr};
 };
 } // namespace cuda::experimental::execution
 

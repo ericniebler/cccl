@@ -225,6 +225,14 @@ struct stream_domain;
 struct stream_context;
 struct stream_scheduler;
 
+#if _CCCL_DEVICE_COMPILATION()
+__device__ inline int __max_stdexec_thread_id   = 0;
+__device__ inline const int __stdexec_thread_id = 0;
+#else
+inline constinit int __max_stdexec_thread_id      = 0;
+inline thread_local const int __stdexec_thread_id = ++__max_stdexec_thread_id;
+#endif
+
 } // namespace execution
 
 } // namespace cuda::experimental

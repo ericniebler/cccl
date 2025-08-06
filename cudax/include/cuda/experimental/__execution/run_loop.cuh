@@ -44,13 +44,14 @@ public:
   _CCCL_API void run() noexcept
   {
     // execute work items until the __finishing_ flag is set:
-    while (!__finishing_.load(_CUDA_VSTD::memory_order_acquire))
+    do
     {
       __queue_.wait_for_item();
+      __debug_printf("run_loop::run() notified that an item is available");
       __execute_all();
-    }
-    // drain the queue, taking care to execute any tasks that get added while
-    // executing the remaining tasks:
+    } while (!__finishing_.load(_CUDA_VSTD::memory_order_acquire));
+    // drain the queue, taking care to execute any tasks that get added while executing
+    // the remaining tasks:
     while (__execute_all())
       ;
   }
@@ -59,6 +60,7 @@ public:
   {
     if (!__finishing_.exchange(true, _CUDA_VSTD::memory_order_acq_rel))
     {
+      __debug_printf("run_loop::finish() called, setting __finishing_ to true");
       // push an empty work item to the queue to wake up the consuming thread
       // and let it finish:
       __queue_.push(&__noop_task);
@@ -73,7 +75,9 @@ public:
     _CCCL_HIDE_FROM_ABI __task() = default;
     _CCCL_TRIVIAL_API explicit __task(__execute_fn_t* __execute_fn) noexcept
         : __execute_fn_(__execute_fn)
-    {}
+    {
+      __debug_printf("run_loop::__task created, task = %p, &__next_ = %p", (void*) this, (void*) &__next_);
+    }
 
     _CCCL_API void __execute() noexcept
     {
@@ -121,6 +125,8 @@ public:
 
     _CCCL_API constexpr void start() noexcept
     {
+      __debug_printf(
+        "run_loop::__opstate_t::start() called, pushing task %p to queue %p", (void*) this, (void*) __queue_);
       __queue_->push(this);
     }
   };

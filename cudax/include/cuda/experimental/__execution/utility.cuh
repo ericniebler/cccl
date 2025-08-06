@@ -33,11 +33,15 @@
 #include <cuda/std/__type_traits/is_same.h>
 #include <cuda/std/__type_traits/type_list.h>
 #include <cuda/std/__utility/pod_tuple.h>
+#include <cuda/std/atomic>
 #include <cuda/std/initializer_list>
 
 #include <cuda/experimental/__detail/utility.cuh>
 #include <cuda/experimental/__execution/meta.cuh>
 #include <cuda/experimental/__execution/type_traits.cuh>
+
+#include <cstdarg>
+#include <cstdio>
 
 #include <cuda_runtime_api.h>
 
@@ -131,6 +135,37 @@ template <class _Ty>
   return __attrs;
 }
 
+[[nodiscard]] _CCCL_HOST_API inline auto __memory_type_name_host(const void* __pv) -> const char*
+{
+  auto const __attrs = __get_pointer_attributes(__pv);
+  switch (__attrs.type)
+  {
+    case ::cudaMemoryTypeHost:
+      return "host";
+    case ::cudaMemoryTypeDevice:
+      return "device";
+    case ::cudaMemoryTypeManaged:
+      return "managed";
+    case ::cudaMemoryTypeUnregistered:
+      return "unregistered";
+    default:
+      return "unknown";
+  }
+}
+
+[[nodiscard]] _CCCL_API inline auto __memory_type_name(const void* __pv) -> const char*
+{
+  // On device, we don't have access to the CUDA runtime, so we can't get the memory kind.
+  NV_IF_TARGET(NV_IS_HOST, (return __memory_type_name_host(__pv);), (return "unknown <called from device>";))
+  _CCCL_UNREACHABLE();
+}
+
+[[nodiscard]] _CCCL_API inline constexpr auto __is_on_device() noexcept -> bool
+{
+  NV_IF_TARGET(NV_IS_HOST, (return false;), (return true;));
+  _CCCL_UNREACHABLE();
+}
+
 // This function can only be called from a catch handler.
 [[nodiscard]] _CCCL_HOST_API inline auto __get_cuda_error_from_active_exception() -> ::cudaError_t
 {
@@ -152,6 +187,39 @@ template <class _Ty>
   }
   _CCCL_UNREACHABLE();
 }
+
+#if _CCCL_HOST_COMPILATION()
+#  define __debug_printf(...) ::cuda::experimental::execution::__debug_printf_impl(__VA_ARGS__)
+_CCCL_HOST_API inline void __debug_printf_impl(const char* __fmt, ...) noexcept
+{
+  static int __max_tid                = 0;
+  static thread_local int const __tid = _CUDA_VSTD::atomic_ref(__max_tid)++; // not thread-safe, but we don't care
+
+  char __buffer[256]{};
+  int __len = snprintf(__buffer, sizeof(__buffer), "thread %d: ", __tid);
+  if (__len < 0 || __len >= static_cast<int>(sizeof(__buffer)))
+  {
+    __len = __buffer[0] = '\0'; // reset buffer to empty
+  }
+
+  {
+    va_list __args;
+    va_start(__args, __fmt);
+    (void) vsnprintf(__buffer + __len, sizeof(__buffer) - __len, __fmt, __args);
+    va_end(__args);
+  }
+
+  printf("%s (called from %s)\n", __buffer, __is_on_device() ? "device" : "host");
+  fflush(stdout);
+}
+#else // ^^^ _CCCL_HOST_COMPILATION() ^^^ / vvv !_CCCL_HOST_COMPILATION() vvv
+#  define __debug_printf_cargs_1 _CCCL_PP_PROBE(~)
+#  define __debug_printf_comma_if(...) \
+    _CCCL_PP_COMMA_IIF(_CCCL_PP_NOT(_CCCL_PP_CHECK(_CCCL_PP_CAT(__debug_printf_cargs_, _CCCL_PP_COUNT(__VA_ARGS__)))))
+#  define __debug_printf(...)                                                   \
+    printf("thread %d: " _CCCL_PP_FIRST(__VA_ARGS__) " (called from device)\n", \
+           (blockIdx.x * blockDim.x + threadIdx.x) __debug_printf_comma_if(__VA_ARGS__) _CCCL_PP_TAIL(__VA_ARGS__))
+#endif
 
 template <class _Ty>
 struct __managed_box : private __immovable

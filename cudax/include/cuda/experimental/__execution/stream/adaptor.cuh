@@ -231,7 +231,7 @@ struct _CCCL_TYPE_VISIBILITY_DEFAULT __opstate_t
 
   // This is called by the continues_on adaptor after it has sync'ed the stream.
   template <class _Rcvr2>
-  _CCCL_HOST_API auto __set_results(_Rcvr2& __rcvr) noexcept
+  _CCCL_HOST_API auto __continue(_Rcvr2& __rcvr) noexcept
   {
     __results_t::__visit(__results_visitor<_Rcvr2&>{__rcvr}, __get_state().__state_.__results_);
   }
@@ -415,7 +415,15 @@ struct _CCCL_TYPE_VISIBILITY_DEFAULT __sndr_t
 template <class _Sndr, class _GetStream>
 _CCCL_API constexpr auto __adapt(_Sndr&& __sndr, _GetStream __get_stream) noexcept(__nothrow_decay_copyable<_Sndr>)
 {
-  return __sndr_t<_Sndr, _GetStream>{{}, __get_stream, static_cast<_Sndr&&>(__sndr)};
+  // If the sender is already a stream sender, just return it.
+  if constexpr (__is_specialization_of_v<_CUDA_VSTD::remove_cvref_t<_Sndr>, __sndr_t>)
+  {
+    return static_cast<_Sndr&&>(__sndr);
+  }
+  else
+  {
+    return __sndr_t<_Sndr, _GetStream>{{}, __get_stream, static_cast<_Sndr&&>(__sndr)};
+  }
 }
 } // namespace __stream
 
