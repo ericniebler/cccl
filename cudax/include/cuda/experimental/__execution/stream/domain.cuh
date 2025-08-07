@@ -53,9 +53,6 @@ _CCCL_API auto __tag_of(const _Sndr& __sndr) -> tag_of_t<_Sndr>;
 template <class _Sndr>
 using __tag_of_t = decltype(__stream::__tag_of(declval<_Sndr>()));
 
-struct __adapted_t
-{};
-
 template <class _Sndr, class _GetStream>
 struct _CCCL_TYPE_VISIBILITY_DEFAULT __sndr_t;
 
@@ -104,9 +101,6 @@ struct stream_domain
   struct __apply_adapt_t
   {
     // This is the default apply function that adapts a sender to a stream sender.
-    // The constraint prevents this function from applying an adaptor to a sender
-    // that has already been adapted. The __stream::__adapted_t query is present
-    // only on receivers that come from an adapted sender.
     template <class _Sndr>
     _CCCL_API constexpr auto operator()(_Sndr&& __sndr, _CUDA_VSTD::__ignore_t) const
       noexcept(__nothrow_decay_copyable<_Sndr>)
@@ -129,31 +123,6 @@ struct stream_domain
   struct __apply_t : __apply_adapt_t
   {};
 
-  template <class _Sndr, class _Env>
-  _CCCL_API static constexpr auto __transform_strategy() noexcept
-  {
-    if constexpr (__queryable_with<_Env, __stream::__adapted_t>)
-    {
-      // The __stream::__adapted_t query is present only on receivers that come from an
-      // adapted sender. Therefore, _Sndr has already been adapted. Pass it through as is.
-      return __apply_passthru_t{};
-    }
-    else if constexpr (sender_for<_Sndr>)
-    {
-      // The sender has a tag type. Use the tag to determine the transformation to apply.
-      return __apply_t<tag_of_t<_Sndr>>{};
-    }
-    else
-    {
-      // Otherwise, _Sndr is an unknown sender type that has not yet been adapted to
-      // be a stream sender. Adapt it now.
-      return __apply_adapt_t{};
-    }
-  }
-
-  template <class _Sndr, class _Env>
-  using __transform_strategy_t = decltype(__transform_strategy<_Sndr, _Env>());
-
 public:
   _CCCL_TEMPLATE(class _Tag, class _Sndr, class... _Args)
   _CCCL_REQUIRES(_CUDA_VSTD::__is_callable_v<__apply_t<_Tag>, _Sndr, _Args...>)
@@ -164,13 +133,13 @@ public:
     return __apply_t<_Tag>{}(static_cast<_Sndr&&>(__sndr), static_cast<_Args&&>(__args)...);
   }
 
-  _CCCL_TEMPLATE(class _Sndr, class _Env)
-  _CCCL_REQUIRES(_CUDA_VSTD::__is_callable_v<__transform_strategy_t<_Sndr, _Env>, _Sndr, const _Env&>)
-  _CCCL_TRIVIAL_API static constexpr auto transform_sender(_Sndr&& __sndr, const _Env& __env) noexcept(
-    __nothrow_callable<__transform_strategy_t<_Sndr, _Env>, _Sndr, const _Env&>)
-    -> _CUDA_VSTD::__call_result_t<__transform_strategy_t<_Sndr, _Env>, _Sndr, const _Env&>
+  _CCCL_TEMPLATE(class _Sndr, class... _Env)
+  _CCCL_REQUIRES(_CUDA_VSTD::__is_callable_v<__apply_t<__stream::__tag_of_t<_Sndr>>, _Sndr, const _Env&...>)
+  _CCCL_TRIVIAL_API static constexpr auto transform_sender(_Sndr&& __sndr, const _Env&... __env) noexcept(
+    __nothrow_callable<__apply_t<__stream::__tag_of_t<_Sndr>>, _Sndr, const _Env&...>)
+    -> _CUDA_VSTD::__call_result_t<__apply_t<__stream::__tag_of_t<_Sndr>>, _Sndr, const _Env&...>
   {
-    return __transform_strategy_t<_Sndr, _Env>{}(static_cast<_Sndr&&>(__sndr), __env);
+    return __apply_t<__stream::__tag_of_t<_Sndr>>{}(static_cast<_Sndr&&>(__sndr), __env...);
   }
 };
 

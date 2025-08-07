@@ -195,8 +195,11 @@ void starts_on_with_stream_scheduler2()
 
   auto start =
     ex::starts_on(sch, ex::just() | ex::then([] __device__() noexcept -> int {
+                         __debug_printf("Hello from lambda on device!");
                          return 42;
                        }))
+    // TODO HACK starts_on doesn't know where it will complete, so set it explicitly:
+    | ex::write_attrs(ex::prop{ex::get_completion_scheduler<ex::set_value_t>, sch})
     | ex::continues_on(tctx.get_scheduler()) // continue work on the CPU
     | ex::then([] __host__ __device__(int i) noexcept -> int {
         return i + 1;

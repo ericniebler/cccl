@@ -111,7 +111,7 @@ struct on_t
   struct __lower_sndr_fn
   {
     template <class _Sndr, class _NewSch, class _Env>
-    [[nodiscard]] _CCCL_API constexpr auto operator()(_Sndr __sndr, _NewSch __new_sch, _Env const& __env) const
+    [[nodiscard]] _CCCL_API constexpr auto operator()(_Sndr&& __sndr, _NewSch __new_sch, _Env const& __env) const
     {
       auto __old_sch = __query_or(__env, get_scheduler, __not_a_scheduler{});
       return continues_on(starts_on(static_cast<_NewSch&&>(__new_sch), static_cast<_Sndr&&>(__sndr)), __old_sch);
@@ -119,7 +119,7 @@ struct on_t
 
     template <class _Sndr, class _NewSch, class _Env, class _Closure>
     [[nodiscard]] _CCCL_API constexpr auto
-    operator()(_Sndr __sndr, _NewSch __new_sch, _Env const& __env, _Closure __closure) const
+    operator()(_Sndr&& __sndr, _NewSch __new_sch, _Env const& __env, _Closure __closure) const
     {
       auto __old_sch = __query_or(
         get_env(__sndr), get_completion_scheduler<set_value_t>, __query_or(__env, get_scheduler, __not_a_scheduler{}));
@@ -141,7 +141,7 @@ struct on_t
   struct _CCCL_TYPE_VISIBILITY_DEFAULT __attrs_t
   {
     _CCCL_TEMPLATE(class _Query)
-    _CCCL_REQUIRES(__forwarding_query<_Query>&& __queryable_with<env_of_t<_Sndr>, _Query>)
+    _CCCL_REQUIRES(__forwarding_query<_Query> _CCCL_AND __queryable_with<env_of_t<_Sndr>, _Query>)
     [[nodiscard]] _CCCL_API constexpr auto query(_Query __query) const
       noexcept(__nothrow_queryable_with<env_of_t<_Sndr>, _Query>) -> __query_result_t<env_of_t<_Sndr>, _Query>
     {
@@ -151,11 +151,7 @@ struct on_t
     template <class _Tag>
     _CCCL_API constexpr auto query(get_completion_scheduler_t<_Tag>) const noexcept = delete;
 
-    template <class _Tag>
     _CCCL_API constexpr auto query(get_domain_t) const noexcept = delete;
-
-    template <class _Tag>
-    _CCCL_API constexpr auto query(get_domain_override_t) const noexcept = delete;
 
     _Sndr const& __sndr_;
   };
@@ -272,8 +268,9 @@ struct _CCCL_TYPE_VISIBILITY_DEFAULT on_t::__lowered_sndr_t<_Sndr, _NewSch, _Env
 {
   using __base_t = _CUDA_VSTD::__call_result_t<on_t::__lower_sndr_fn, _Sndr, _NewSch, _Env>;
 
-  _CCCL_API constexpr __lowered_sndr_t(_Sndr&& __sndr, _NewSch __new_sch, _Env const& __env)
-      : __base_t{on_t::__lower_sndr_fn{}(static_cast<_Sndr&&>(__sndr), static_cast<_NewSch&&>(__new_sch), __env)}
+  template <class _CvSndr>
+  _CCCL_API constexpr __lowered_sndr_t(_CvSndr&& __sndr, _NewSch __new_sch, _Env const& __env)
+      : __base_t{on_t::__lower_sndr_fn{}(static_cast<_CvSndr&&>(__sndr), static_cast<_NewSch&&>(__new_sch), __env)}
   {}
 
   auto base() const noexcept -> __base_t const&
@@ -288,9 +285,10 @@ struct _CCCL_TYPE_VISIBILITY_DEFAULT on_t::__lowered_sndr_t<_Sndr, _NewSch, _Env
 {
   using __base_t = _CUDA_VSTD::__call_result_t<on_t::__lower_sndr_fn, _Sndr, _NewSch, _Env, _Closure>;
 
-  _CCCL_API constexpr __lowered_sndr_t(_Sndr&& __sndr, _NewSch __new_sch, _Env const& __env, _Closure __closure)
+  template <class _CvSndr>
+  _CCCL_API constexpr __lowered_sndr_t(_CvSndr&& __sndr, _NewSch __new_sch, _Env const& __env, _Closure __closure)
       : __base_t{on_t::__lower_sndr_fn{}(
-          static_cast<_Sndr&&>(__sndr), static_cast<_NewSch&&>(__new_sch), __env, static_cast<_Closure&&>(__closure))}
+          static_cast<_CvSndr&&>(__sndr), static_cast<_NewSch&&>(__new_sch), __env, static_cast<_Closure&&>(__closure))}
   {}
 };
 
@@ -328,11 +326,8 @@ struct _CCCL_TYPE_VISIBILITY_DEFAULT on_t::__sndr_t<_Sch, _Sndr, _Closure>
 
 _CCCL_GLOBAL_CONSTANT on_t on{};
 
-template <class _Sch, class _Sndr>
-inline constexpr size_t structured_binding_size<on_t::__sndr_t<_Sch, _Sndr>> = 3;
-
-template <class _Sch, class _Sndr, class _Closure>
-inline constexpr size_t structured_binding_size<on_t::__sndr_t<_Sch, _Sndr, _Closure>> = 3;
+template <class _Sch, class _Sndr, class... _Closure>
+inline constexpr size_t structured_binding_size<on_t::__sndr_t<_Sch, _Sndr, _Closure...>> = 3;
 
 template <class _Sndr, class _NewSch, class _Env, class... _Closure>
 inline constexpr size_t structured_binding_size<on_t::__lowered_sndr_t<_Sndr, _NewSch, _Env, _Closure...>> = 3;

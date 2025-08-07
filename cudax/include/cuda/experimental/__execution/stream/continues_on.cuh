@@ -217,13 +217,15 @@ struct __continues_on_t
       return execution::get_env(__sndr_);
     }
 
-    _CCCL_NO_UNIQUE_ADDRESS __thunk_t __tag_;
+    // By wrapping the tag type in __stream::__tag_t, we signal to the stream domain that
+    // this sender has already been adapted to run on a CUDA stream.
+    _CCCL_NO_UNIQUE_ADDRESS __tag_t<continues_on_t> __tag_;
     _CUDA_VSTD::__ignore_t __ignore_;
     _Sndr __sndr_;
   };
 
   template <class _Sndr>
-  [[nodiscard]] _CCCL_API auto operator()(_Sndr&& __sndr, _CUDA_VSTD::__ignore_t) const
+  [[nodiscard]] _CCCL_API auto operator()(_Sndr&& __sndr) const
   {
     auto& [__tag, __sched, __child] = __sndr;
     using __child_t                 = _CUDA_VSTD::__copy_cvref_t<_Sndr, decltype(__child)>;
@@ -247,11 +249,6 @@ struct __continues_on_t
 
 template <>
 struct stream_domain::__apply_t<continues_on_t> : __stream::__continues_on_t
-{};
-
-// The stream continues_on sender should not be wrapped in an adaptor.
-template <>
-struct stream_domain::__apply_t<__stream::__continues_on_t::__thunk_t> : stream_domain::__apply_passthru_t
 {};
 
 template <class _Sndr>

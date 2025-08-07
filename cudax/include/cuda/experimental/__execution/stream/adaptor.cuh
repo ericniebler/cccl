@@ -142,13 +142,6 @@ struct _CCCL_TYPE_VISIBILITY_DEFAULT __env_t
     return __env_.query(_Query{});
   }
 
-  // This query is used to tell transform_sender that the child sender has been adapted to
-  // the stream domain.
-  [[nodiscard]] _CCCL_API static constexpr auto query(__stream::__adapted_t) noexcept -> _CUDA_VSTD::__ignore_t
-  {
-    return {};
-  }
-
   [[nodiscard]] _CCCL_API constexpr auto query(get_launch_config_t) const noexcept -> _Config
   {
     return __launch_config_;
@@ -316,11 +309,14 @@ private:
   {
     _CCCL_HOST_API constexpr explicit __state_t(_CvSndr&& __sndr, _Rcvr __rcvr)
         : __state_{{static_cast<_Rcvr&&>(__rcvr), {}, false}, get_launch_config(execution::get_env(__sndr))}
-        , __opstate_(execution::connect(static_cast<_CvSndr&&>(__sndr), __rcvr_t{&__state_}))
+        // call __sndr.connect(...) directly to avoid an infinitely recursive call to transform_sender:
+        , __opstate_(static_cast<_CvSndr&&>(__sndr).connect(__rcvr_t{&__state_}))
     {}
 
     __stream::__state_t<_Rcvr, __sndr_config_t, __results_t> __state_;
-    connect_result_t<_CvSndr, __rcvr_t> __opstate_;
+
+    using __opstate_t = decltype(declval<_CvSndr>().connect(__rcvr_t{}));
+    __opstate_t __opstate_;
   };
 
   // Return a reference to the state for this operation, whether it is stored in-situ or
@@ -383,7 +379,8 @@ struct _CCCL_TYPE_VISIBILITY_DEFAULT __sndr_t
     using __cv_sndr_t _CCCL_NODEBUG_ALIAS     = _CUDA_VSTD::__copy_cvref_t<_Self, _Sndr>;
     using __sndr_config_t _CCCL_NODEBUG_ALIAS = _CUDA_VSTD::__call_result_t<get_launch_config_t, env_of_t<_Sndr>>;
     using __env_t                             = __stream::__env_t<_Env, __sndr_config_t>;
-    _CUDAX_LET_COMPLETIONS(auto(__completions) = execution::get_completion_signatures<__cv_sndr_t, __env_t>())
+    // Use __get_completion_signatures_helper to avoid a recursive call to transform_sender:
+    _CUDAX_LET_COMPLETIONS(auto(__completions) = execution::__get_completion_signatures_helper<__cv_sndr_t, __env_t>())
     {
       return __stream::__with_cuda_error(__completions);
     }

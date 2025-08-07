@@ -45,11 +45,11 @@ public:
   {
     // _CCCL_ASSERT(!__is_on_device(), "should not be called on device");
     _CCCL_ASSERT(__node != nullptr, "Cannot push a null pointer to the queue");
-    _Tp* __old_head = __head_.load(); //_CUDA_VSTD::memory_order_relaxed);
+    _Tp* __old_head = __head_.load(_CUDA_VSTD::memory_order_relaxed);
     do
     {
       __node->*_NextPtr = __old_head;
-    } while (!__head_.compare_exchange_weak(__old_head, __node)); //, _CUDA_VSTD::memory_order_acq_rel));
+    } while (!__head_.compare_exchange_weak(__old_head, __node, _CUDA_VSTD::memory_order_acq_rel));
 
     // _CUDA_VSTD::atomic_thread_fence(_CUDA_VSTD::memory_order_seq_cst);
 
@@ -87,7 +87,7 @@ public:
   [[nodiscard]]
   _CCCL_API auto pop_all() noexcept -> __intrusive_queue<_NextPtr>
   {
-    auto* const __list = __head_.exchange(nullptr); //, _CUDA_VSTD::memory_order_acq_rel);
+    auto* const __list = __head_.exchange(nullptr, _CUDA_VSTD::memory_order_acq_rel);
     return __intrusive_queue<_NextPtr>::make_reversed(__list);
   }
 

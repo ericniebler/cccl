@@ -42,6 +42,8 @@
 #include <cuda/experimental/__execution/variant.cuh>
 #include <cuda/experimental/__execution/visit.cuh>
 
+#include <nv/target>
+
 #include <cuda/experimental/__execution/prologue.cuh>
 
 namespace cuda::experimental::execution
@@ -248,6 +250,8 @@ struct _CCCL_TYPE_VISIBILITY_DEFAULT schedule_from_t
     template <class _Tag, class... _As>
     _CCCL_API void __set_result(_Tag, _As&&... __as) noexcept
     {
+      NV_IF_TARGET(NV_IS_DEVICE, (_CCCL_ASSERT(false, "Illegal transfer from GPU to CPU detected");))
+
       using __tupl_t _CCCL_NODEBUG_ALIAS = _CUDA_VSTD::__tuple<_Tag, _CUDA_VSTD::decay_t<_As>...>;
       if constexpr (__nothrow_decay_copyable<_As...>)
       {

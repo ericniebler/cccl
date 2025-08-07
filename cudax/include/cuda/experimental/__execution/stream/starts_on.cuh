@@ -81,9 +81,8 @@ struct __starts_on_t
     {}
   };
 
-  // The connect cpo calls transform_sender, which is directed here for starts_on senders.
-  // It returns a custom sender that knows how to start the child sender on the specified
-  // stream.
+  // The starts_on cpo calls transform_sender, which is directed here for starting work on
+  // stream schedulers.
   template <class _Sndr>
   [[nodiscard]] _CCCL_API auto operator()(_Sndr&& __sndr, _CUDA_VSTD::__ignore_t) const
   {
@@ -93,10 +92,15 @@ struct __starts_on_t
 };
 } // namespace __stream
 
-// Start work on the GPU
+// Tell the stream domain how to transform starts_on senders:
 template <>
 struct stream_domain::__apply_t<starts_on_t> : __stream::__starts_on_t
 {};
+
+// Tell visit the structured binding size of stream starts_on senders:
+template <class _Sch, class _Sndr>
+inline constexpr size_t structured_binding_size<__stream::__starts_on_t::__sndr_t<_Sch, _Sndr>> = 3;
+
 } // namespace cuda::experimental::execution
 
 #include <cuda/experimental/__execution/epilogue.cuh>

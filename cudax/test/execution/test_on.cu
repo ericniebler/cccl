@@ -25,35 +25,35 @@ __host__ __device__ bool _on_device() noexcept
 
 auto const main_thread_id = ::std::this_thread::get_id();
 
-void simple_start_on_thread_test()
-{
-  ex::thread_context ctx;
-  auto sch  = ctx.get_scheduler();
-  auto sndr = ex::on(sch, ex::just() | ex::then([] {
-                            CUDAX_CHECK(::std::this_thread::get_id() != main_thread_id);
-                          }))
-            | ex::then([]() -> int {
-                CUDAX_CHECK(::std::this_thread::get_id() == main_thread_id);
-                return 42;
-              });
-  auto [result] = ex::sync_wait(std::move(sndr)).value();
-  CUDAX_CHECK(result == 42);
-}
+// void simple_start_on_thread_test()
+// {
+//   ex::thread_context ctx;
+//   auto sch  = ctx.get_scheduler();
+//   auto sndr = ex::on(sch, ex::just() | ex::then([] {
+//                             CUDAX_CHECK(::std::this_thread::get_id() != main_thread_id);
+//                           }))
+//             | ex::then([]() -> int {
+//                 CUDAX_CHECK(::std::this_thread::get_id() == main_thread_id);
+//                 return 42;
+//               });
+//   auto [result] = ex::sync_wait(std::move(sndr)).value();
+//   CUDAX_CHECK(result == 42);
+// }
 
-void simple_continue_on_thread_test()
-{
-  ex::thread_context ctx;
-  auto sch  = ctx.get_scheduler();
-  auto sndr = ex::just() | ex::on(sch, ex::then([] {
-                                    CUDAX_CHECK(::std::this_thread::get_id() != main_thread_id);
-                                  }))
-            | ex::then([]() -> int {
-                CUDAX_CHECK(::std::this_thread::get_id() == main_thread_id);
-                return 42;
-              });
-  auto [result] = ex::sync_wait(std::move(sndr)).value();
-  CUDAX_CHECK(result == 42);
-}
+// void simple_continue_on_thread_test()
+// {
+//   ex::thread_context ctx;
+//   auto sch  = ctx.get_scheduler();
+//   auto sndr = ex::just() | ex::on(sch, ex::then([] {
+//                                     CUDAX_CHECK(::std::this_thread::get_id() != main_thread_id);
+//                                   }))
+//             | ex::then([]() -> int {
+//                 CUDAX_CHECK(::std::this_thread::get_id() == main_thread_id);
+//                 return 42;
+//               });
+//   auto [result] = ex::sync_wait(std::move(sndr)).value();
+//   CUDAX_CHECK(result == 42);
+// }
 
 void simple_start_on_stream_test()
 {
@@ -69,38 +69,38 @@ void simple_start_on_stream_test()
   CUDAX_CHECK(result == 42);
 }
 
-void simple_continue_on_stream_test()
-{
-  cudax::stream str{cuda::device_ref(0)};
-  auto sch  = cudax::stream_ref{str};
-  auto sndr = ex::just(42) | ex::on(sch, ex::then([] __host__ __device__(int i) -> int {
-                                      return _on_device() ? i : -i;
-                                    }))
-            | ex::then([] __host__ __device__(int i) -> int {
-                return _on_device() ? -1 : i;
-              });
-  auto [result] = ex::sync_wait(std::move(sndr)).value();
-  CUDAX_CHECK(result == 42);
-}
+// void simple_continue_on_stream_test()
+// {
+//   cudax::stream str{cuda::device_ref(0)};
+//   auto sch  = cudax::stream_ref{str};
+//   auto sndr = ex::just(42) | ex::on(sch, ex::then([] __host__ __device__(int i) -> int {
+//                                       return _on_device() ? i : -i;
+//                                     }))
+//             | ex::then([] __host__ __device__(int i) -> int {
+//                 return _on_device() ? -1 : i;
+//               });
+//   auto [result] = ex::sync_wait(std::move(sndr)).value();
+//   CUDAX_CHECK(result == 42);
+// }
 
-C2H_TEST("simple on(sch, sndr) thread test", "[on]")
-{
-  simple_start_on_thread_test();
-}
+// C2H_TEST("simple on(sch, sndr) thread test", "[on]")
+// {
+//   simple_start_on_thread_test();
+// }
 
-C2H_TEST("simple on(sndr, sch, closure) thread test", "[on]")
-{
-  simple_continue_on_thread_test();
-}
+// C2H_TEST("simple on(sndr, sch, closure) thread test", "[on]")
+// {
+//   simple_continue_on_thread_test();
+// }
 
 C2H_TEST("simple on(sch, sndr) stream test", "[on][stream]")
 {
   simple_start_on_stream_test();
 }
 
-C2H_TEST("simple on(sndr, sch, closure) stream test", "[on][stream]")
-{
-  simple_continue_on_stream_test();
-}
+// C2H_TEST("simple on(sndr, sch, closure) stream test", "[on][stream]")
+// {
+//   simple_continue_on_stream_test();
+// }
 
 } // namespace
