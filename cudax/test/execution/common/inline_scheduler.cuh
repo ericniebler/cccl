@@ -16,66 +16,87 @@
 
 #include "testing.cuh" // IWYU pragma: keep
 
+namespace ex = cuda::experimental::execution;
+
 namespace
 {
+template <class Domain>
+struct _inline_scheduler_attrs_t
+{
+  template <class _Env>
+  _CCCL_HOST_DEVICE static constexpr void __check_env()
+  {
+    if constexpr (cudax::__callable<ex::get_completion_domain_t<ex::set_value_t>, const _Env&, const _Env&>)
+    {
+      using actual_domain_t =
+        cudax::__call_result_t<ex::get_completion_domain_t<ex::set_value_t>, const _Env&, const _Env&>;
+      static_assert(cudax::__is_instantiable_with<cuda::std::common_type_t, Domain, actual_domain_t>,
+                    "the specified completion domain must be convertible to the actual domain");
+    }
+  }
+
+  template <class _Env>
+  _CCCL_HOST_DEVICE static constexpr auto
+  query(ex::get_completion_scheduler_t<ex::set_value_t>, const _Env& env) noexcept
+    -> decltype(ex::get_completion_scheduler<ex::set_value_t>(env, env))
+  {
+    __check_env<_Env>();
+    return ex::get_completion_scheduler<ex::set_value_t>(env, env);
+  }
+
+  template <class... _Env>
+  _CCCL_HOST_DEVICE static constexpr auto
+  query(ex::get_completion_domain_t<ex::set_value_t>, const _Env&... env) noexcept -> Domain
+  {
+    (__check_env<_Env>(), ...);
+    return {};
+  }
+
+  _CCCL_HOST_DEVICE static constexpr auto query(ex::get_completion_behavior_t) noexcept
+  {
+    return ex::completion_behavior::inline_completion;
+  }
+};
+
 //! Scheduler that returns a sender that always completes inline
 //! (successfully).
-template <class Domain = cudax_async::default_domain>
-struct inline_scheduler
+template <class Domain = ex::default_domain>
+struct inline_scheduler : _inline_scheduler_attrs_t<Domain>
 {
 private:
-  struct _attrs_t
-  {
-    _CCCL_HOST_DEVICE static constexpr auto
-    query(cudax_async::get_completion_scheduler_t<cudax_async::set_value_t>) noexcept
-    {
-      return inline_scheduler{};
-    }
-
-    _CCCL_HOST_DEVICE static constexpr auto query(cudax_async::get_domain_t) noexcept -> Domain
-    {
-      return {};
-    }
-
-    _CCCL_HOST_DEVICE static constexpr auto query(cudax_async::get_completion_behavior_t) noexcept
-    {
-      return cudax_async::completion_behavior::inline_completion;
-    }
-  };
-
   template <class Rcvr>
   struct _opstate_t : cuda::__immovable
   {
-    using operation_state_concept = cudax_async::operation_state_t;
+    using operation_state_concept = ex::operation_state_t;
 
     _CCCL_HOST_DEVICE constexpr void start() noexcept
     {
-      cudax_async::set_value(static_cast<Rcvr&&>(_rcvr));
+      ex::set_value(static_cast<Rcvr&&>(_rcvr));
     }
 
     Rcvr _rcvr;
   };
 
 public:
-  using scheduler_concept = cudax_async::scheduler_t;
+  using scheduler_concept = ex::scheduler_t;
 
   struct _sndr_t
   {
-    using sender_concept = cudax_async::sender_t;
+    using sender_concept = ex::sender_t;
 
     template <class Self, class... Env>
     _CCCL_HOST_DEVICE static constexpr auto get_completion_signatures()
     {
-      return cudax_async::completion_signatures<cudax_async::set_value_t()>();
+      return ex::completion_signatures<ex::set_value_t()>();
     }
 
     template <class Rcvr>
-    _CCCL_HOST_DEVICE constexpr _opstate_t<Rcvr> connect(Rcvr rcvr) const
+    _CCCL_HOST_DEVICE constexpr auto connect(Rcvr rcvr) const noexcept -> _opstate_t<Rcvr>
     {
       return {{}, static_cast<Rcvr&&>(rcvr)};
     }
 
-    _CCCL_HOST_DEVICE static constexpr _attrs_t get_env() noexcept
+    _CCCL_HOST_DEVICE static constexpr auto get_env() noexcept -> _inline_scheduler_attrs_t<Domain>
     {
       return {};
     }
@@ -84,11 +105,6 @@ public:
   inline_scheduler() = default;
 
   _CCCL_HOST_DEVICE static constexpr _sndr_t schedule() noexcept
-  {
-    return {};
-  }
-
-  _CCCL_HOST_DEVICE static auto query(cudax_async::get_domain_t) noexcept -> Domain
   {
     return {};
   }

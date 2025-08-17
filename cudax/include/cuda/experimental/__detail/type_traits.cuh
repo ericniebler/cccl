@@ -39,10 +39,19 @@
 
 namespace cuda::experimental
 {
+using ::cuda::std::decay_t;
+
 template <class _Ty, class _Uy>
 _CCCL_CONCEPT __same_as = ::cuda::std::_IsSame<_Ty, _Uy>::value;
 
-using ::cuda::std::decay_t;
+template <class _Ty, class _Uy>
+_CCCL_CONCEPT __not_same = !::cuda::std::_IsSame<_Ty, _Uy>::value;
+
+template <class _Ty, class... _Us>
+_CCCL_CONCEPT __one_of = (__same_as<_Ty, _Us> || ...);
+
+template <class _Ty, class... _Us>
+_CCCL_CONCEPT __none_of = (__not_same<_Ty, _Us> && ...);
 
 template <template <class...> class _Fn, class... _Ts>
 _CCCL_CONCEPT __is_instantiable_with = ::cuda::std::_IsValidExpansion<_Fn, _Ts...>::value;

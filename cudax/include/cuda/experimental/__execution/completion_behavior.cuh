@@ -146,6 +146,11 @@ struct get_completion_behavior_t
 
 struct _CCCL_TYPE_VISIBILITY_DEFAULT min_t
 {
+  [[nodiscard]] _CCCL_API constexpr auto operator()() const noexcept
+  {
+    return completion_behavior::inline_completion;
+  }
+
   template <__completion_behavior::completion_behavior... _CBs>
   [[nodiscard]] _CCCL_API constexpr auto operator()(completion_behavior::__constant_t<_CBs>...) const noexcept
   {

@@ -152,13 +152,14 @@ struct _CCCL_TYPE_VISIBILITY_DEFAULT __fwd_env_fn
   [[nodiscard]] _CCCL_TRIVIAL_API constexpr auto operator()(_Env&& __env) const noexcept(__nothrow_movable<_Env>)
     -> decltype(auto)
   {
-    if constexpr (::cuda::__is_specialization_of_v<::cuda::std::remove_cvref_t<_Env>, __fwd_env_>)
+    if constexpr (__is_specialization_of_v<::cuda::std::remove_cvref_t<_Env>, __fwd_env_>)
     {
       // If the environment is already a forwarding environment, we can just return it.
       return static_cast<_Env>(static_cast<_Env&&>(__env)); // take care to not return an rvalue reference
     }
     else
     {
+      static_assert(__nothrow_movable<_Env>);
       return __fwd_env_<_Env>{static_cast<_Env&&>(__env)};
     }
   }
@@ -180,9 +181,9 @@ struct _CCCL_TYPE_VISIBILITY_DEFAULT __sch_env_t
     return __sch_;
   }
 
-  [[nodiscard]] _CCCL_API static constexpr auto query(get_domain_t) noexcept
+  [[nodiscard]] _CCCL_API constexpr auto query(get_domain_t) const noexcept
   {
-    return __query_result_or_t<_Sch, get_domain_t, default_domain>{};
+    return __query_result_or_t<_Sch, get_completion_domain_t<set_value_t>, default_domain>{};
   }
 
   _Sch __sch_;
@@ -190,6 +191,43 @@ struct _CCCL_TYPE_VISIBILITY_DEFAULT __sch_env_t
 
 template <class _Sch>
 _CCCL_HOST_DEVICE __sch_env_t(_Sch) -> __sch_env_t<_Sch>;
+
+namespace __detail
+{
+struct __join_env_fn
+{
+  template <class _Env>
+  _CCCL_API constexpr auto operator()(_Env&& __env, env<> = {}) const noexcept -> _Env
+  {
+    static_assert(__nothrow_movable<_Env>);
+    return static_cast<_Env&&>(__env);
+  }
+
+  template <class _Env>
+  _CCCL_API constexpr auto operator()(env<>, _Env&& __env) const noexcept -> __fwd_env_t<_Env>
+  {
+    return __fwd_env(static_cast<_Env&&>(__env));
+  }
+
+  _CCCL_API constexpr auto operator()(env<>, env<>) const noexcept -> env<>
+  {
+    return {};
+  }
+
+  template <class _First, class _Second>
+  _CCCL_API constexpr auto operator()(_First&& __first, _Second&& __second) const noexcept
+    -> env<_First, __fwd_env_t<_Second>>
+  {
+    static_assert(__nothrow_movable<_First>);
+    return {static_cast<_First&&>(__first), __fwd_env(static_cast<_Second&&>(__second))};
+  }
+};
+} // namespace __detail
+
+_CCCL_GLOBAL_CONSTANT __detail::__join_env_fn __join_env{};
+
+template <class... _Envs>
+using __join_env_t _CCCL_NODEBUG_ALIAS = __call_result_t<__detail::__join_env_fn, _Envs...>;
 
 } // namespace execution
 

@@ -818,7 +818,7 @@ void late_customizing_bulk_chunked_also_changes_the_behavior_of_bulk()
   REQUIRE_FALSE(called);
 }
 
-struct my_domain2
+struct my_domain2 : ex::default_domain
 {
   _CCCL_TEMPLATE(class Sender, class... Env)
   _CCCL_REQUIRES(ex::sender_for<Sender, ex::bulk_t>)
@@ -826,6 +826,9 @@ struct my_domain2
   {
     return ex::just(string{"hijacked"});
   }
+
+private:
+  using ex::default_domain::apply_sender;
 };
 
 void bulk_can_be_customized_independently_of_bulk_chunked()

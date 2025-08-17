@@ -145,7 +145,7 @@ struct _CCCL_TYPE_VISIBILITY_DEFAULT __env_t
 
   // This query is used to tell transform_sender that the child sender has been adapted to
   // the stream domain.
-  [[nodiscard]] _CCCL_API static constexpr auto query(__stream::__adapted_t) noexcept -> ::cuda::std::__ignore_t
+  [[nodiscard]] _CCCL_API constexpr auto query(__stream::__adapted_t) const noexcept -> ::cuda::std::__ignore_t
   {
     return {};
   }
@@ -343,7 +343,7 @@ struct _CCCL_TYPE_VISIBILITY_DEFAULT __attrs_t
 {
   // This makes sure that when `connect` calls `transform_sender`, it will use the stream
   // domain to find a customization.
-  [[nodiscard]] _CCCL_TRIVIAL_API static constexpr auto query(get_domain_override_t) noexcept -> stream_domain
+  [[nodiscard]] _CCCL_TRIVIAL_API constexpr auto query(get_domain_override_t) const noexcept -> stream_domain
   {
     return {};
   }
@@ -358,7 +358,7 @@ struct _CCCL_TYPE_VISIBILITY_DEFAULT __attrs_t
   }
 
   // This sender executes asynchronously with respect to 'start()':
-  [[nodiscard]] _CCCL_API static constexpr auto query(get_completion_behavior_t) noexcept
+  [[nodiscard]] _CCCL_API constexpr auto query(get_completion_behavior_t) const noexcept
   {
     return completion_behavior::asynchronous;
   }

@@ -139,6 +139,8 @@ _CCCL_GLOBAL_CONSTANT struct get_delegation_scheduler_t
 template <class _Tag>
 struct get_completion_scheduler_t
 {
+  using __tag_t = _Tag;
+
   _CCCL_EXEC_CHECK_DISABLE
   _CCCL_TEMPLATE(class _Attrs)
   _CCCL_REQUIRES(__queryable_with<_Attrs, get_completion_scheduler_t>)
@@ -161,7 +163,7 @@ struct get_completion_scheduler_t
     return __attrs.query(*this, __env);
   }
 
-  _CCCL_TEMPLATE(class _Attrs, class _Env, class _SetTag = _Tag)
+  _CCCL_TEMPLATE(class _Attrs, class _Env)
   _CCCL_REQUIRES((!__queryable_with<_Attrs, get_completion_scheduler_t>) _CCCL_AND //
                  (!__queryable_with<_Attrs, get_completion_scheduler_t, const _Env&>) _CCCL_AND //
                    __completes_inline<_Attrs, _Env> _CCCL_AND //

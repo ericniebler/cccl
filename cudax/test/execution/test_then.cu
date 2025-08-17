@@ -160,7 +160,8 @@ C2H_TEST("then advertises completion schedulers", "[adaptors][then]")
   {
     auto snd = ex::schedule(sched) | ex::then([] {});
     STATIC_REQUIRE(ex::sender<decltype(snd)>);
-    REQUIRE(ex::get_completion_scheduler<ex::set_value_t>(ex::get_env(snd)) == sched);
+    auto env = ex::prop{ex::get_scheduler, inline_scheduler{}};
+    CHECK(ex::get_completion_scheduler<ex::set_value_t>(ex::get_env(snd), env) == sched);
   }
 }
 
@@ -210,12 +211,11 @@ C2H_TEST("then keeps error_types from input sender", "[adaptors][then]")
 C2H_TEST("then keeps sends_stopped from input sender", "[adaptors][then]")
 {
   inline_scheduler sched1{};
-  error_scheduler sched2{error_code{std::errc::invalid_argument}};
-  stopped_scheduler sched3{};
+  stopped_scheduler sched2{};
 
   check_sends_stopped<false>(ex::just() | ex::continues_on(sched1) | ex::then([] {}));
   check_sends_stopped<true>(ex::just() | ex::continues_on(sched2) | ex::then([] {}));
-  check_sends_stopped<true>(ex::just() | ex::continues_on(sched3) | ex::then([] {}));
+  check_sends_stopped<true>(ex::just_stopped() | ex::continues_on(sched1) | ex::then([] {}));
 }
 
 C2H_TEST("then can return by reference", "[adaptors][then]")

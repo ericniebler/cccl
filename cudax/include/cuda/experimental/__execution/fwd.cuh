@@ -200,6 +200,9 @@ template <class _Tag>
 struct _CCCL_TYPE_VISIBILITY_DEFAULT get_completion_scheduler_t;
 struct _CCCL_TYPE_VISIBILITY_DEFAULT get_domain_t;
 struct _CCCL_TYPE_VISIBILITY_DEFAULT get_domain_override_t;
+template <class _Tag>
+struct _CCCL_TYPE_VISIBILITY_DEFAULT get_completion_domain_t;
+struct _CCCL_TYPE_VISIBILITY_DEFAULT get_completion_behavior_t;
 
 // get_forward_progress_guarantee:
 enum class forward_progress_guarantee

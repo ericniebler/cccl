@@ -25,6 +25,7 @@ C2H_TEST("continues_on simple example", "[adaptors][continues_on]")
 {
   auto snd = cudax_async::continues_on(cudax_async::just(13), inline_scheduler<>{});
   auto op  = cudax_async::connect(std::move(snd), checked_value_receiver{13});
+
   static_assert(
     cudax_async::get_completion_behavior<decltype(snd)>() == cudax_async::completion_behavior::inline_completion);
   cudax_async::start(op);
@@ -214,11 +215,10 @@ C2H_TEST("continues_on sends an exception_ptr if value types are potentially thr
 C2H_TEST("continues_on keeps sends_stopped from scheduler's sender", "[adaptors][continues_on]")
 {
   inline_scheduler<> sched1{};
-  error_scheduler<error_code> sched2{error_code{std::errc::invalid_argument}};
-  stopped_scheduler sched3{};
+  stopped_scheduler sched2{};
 
   check_sends_stopped<false>(cudax_async::continues_on(cudax_async::just(1), sched1));
-  check_sends_stopped<true>(cudax_async::continues_on(cudax_async::just(2), sched2));
-  check_sends_stopped<true>(cudax_async::continues_on(cudax_async::just(3), sched3));
+  check_sends_stopped<true>(cudax_async::continues_on(cudax_async::just_stopped(), sched1));
+  check_sends_stopped<true>(cudax_async::continues_on(cudax_async::just(3), sched2));
 }
 } // namespace
