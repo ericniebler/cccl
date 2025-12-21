@@ -208,6 +208,24 @@ void starts_on_with_stream_scheduler2()
   CHECK(i == 43);
 }
 
+void sequence_with_stream_scheduler()
+{
+  cuda::device_ref _dev{0};
+  cudax::stream sctx{_dev};
+  ex::thread_context tctx;
+  auto sch = sctx.get_scheduler();
+
+  auto start = //
+    ex::sequence(ex::schedule(sch), //
+                 ex::just() //
+                   | ex::bulk(ex::par_unseq, 10, [] __device__(int i) noexcept -> void {
+                       CUDAX_CHECK(_is_on_device());
+                     }));
+
+  // run the ex, wait for it to finish, and get the result
+  ex::sync_wait(std::move(start)).value();
+}
+
 namespace
 {
 // Test code is placed in separate functions to avoid an nvc++ issue with
@@ -250,5 +268,10 @@ C2H_TEST("use starts_on with a stream scheduler", "[context][stream]")
   {
     REQUIRE_NOTHROW(starts_on_with_stream_scheduler2());
   }
+}
+
+C2H_TEST("run a sequence sender on a stream", "[context][stream]")
+{
+  REQUIRE_NOTHROW(sequence_with_stream_scheduler());
 }
 } // namespace

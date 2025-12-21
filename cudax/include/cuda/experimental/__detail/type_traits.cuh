@@ -57,6 +57,9 @@ _CCCL_CONCEPT __same_as = ::cuda::std::_IsSame<_Ty, _Uy>::value;
 template <class _Ty, class _Uy>
 _CCCL_CONCEPT __not_same_as = !::cuda::std::_IsSame<_Ty, _Uy>::value;
 
+template <class _Ty, class _Uy>
+_CCCL_CONCEPT __decays_to = ::cuda::std::_IsSame<decay_t<_Ty>, _Uy>::value;
+
 template <class _Ty, class... _Us>
 _CCCL_CONCEPT __one_of = (__same_as<_Ty, _Us> || ...);
 

@@ -26,6 +26,7 @@
 #include <cuda/hierarchy>
 #include <cuda/std/__concepts/concept_macros.h>
 #include <cuda/std/__memory/unique_ptr.h>
+#include <cuda/std/__tuple_dir/ignore.h>
 #include <cuda/std/__type_traits/remove_cvref.h>
 #include <cuda/std/__utility/pod_tuple.h>
 
@@ -222,6 +223,10 @@ struct _CCCL_TYPE_VISIBILITY_DEFAULT __opstate_t
 
   _CCCL_API constexpr void start() noexcept
   {
+    constexpr int __block_threads = __dims_of_t<__rcvr_config_t>::static_count(gpu_thread, block);
+    // without the following, the kernel in __host_start will fail to launch with
+    // cudaErrorInvalidDeviceFunction.
+    ::cuda::std::ignore = &__completion_kernel<__block_threads, _Rcvr, __results_t>;
     NV_IF_TARGET(NV_IS_HOST, ({ __host_start(); }), ({ __device_start(); }));
   }
 
@@ -301,7 +306,7 @@ private:
 
     // without the following, the kernel in __host_start will fail to launch with
     // cudaErrorInvalidDeviceFunction.
-    ::__cccl_unused(&__completion_kernel<__block_threads, _Rcvr, __results_t>);
+    ::cuda::std::ignore                 = &__completion_kernel<__block_threads, _Rcvr, __results_t>;
     __state.__state_.__complete_inline_ = true;
     execution::start(__state.__opstate_);
   }

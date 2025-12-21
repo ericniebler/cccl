@@ -46,6 +46,15 @@ namespace cuda::experimental::execution
 template <class _DomainOrTag, class... _Args>
 using __apply_sender_result_t _CCCL_NODEBUG_ALIAS = decltype(_DomainOrTag{}.apply_sender(declval<_Args>()...));
 
+template <class _DomainOrTag, class... _Args>
+_CCCL_CONCEPT __has_apply_sender = __is_instantiable_with<__apply_sender_result_t, _DomainOrTag, _Args...>;
+
+template <class _DomainOrTag, class... _Args>
+_CCCL_CONCEPT __nothrow_apply_sender = _CCCL_REQUIRES_EXPR((_DomainOrTag, variadic _Args), _Args&&... __args) //
+  ( //
+    noexcept(_DomainOrTag{}.apply_sender(declval<_Args>()...)) //
+  );
+
 // _DomainOrTag: eg, default_domain or then_t
 // _OpTag: either start_t or set_value_t
 template <class _DomainOrTag, class _OpTag, class _Sndr, class... _Env>

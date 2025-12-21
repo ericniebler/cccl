@@ -311,6 +311,12 @@ _CCCL_GLOBAL_CONSTANT get_completion_scheduler_t<set_error_t> get_completion_sch
 template <>
 _CCCL_GLOBAL_CONSTANT get_completion_scheduler_t<set_stopped_t> get_completion_scheduler<set_stopped_t>{};
 
+template <class _SetTag, class _Attrs, class... _Env>
+using __completion_scheduler_of_t = __call_result_t<get_completion_scheduler_t<_SetTag>, _Attrs, _Env...>;
+
+template <class _Sndr, class _Sch, class _Env, class _SetTag = set_value_t>
+_CCCL_CONCEPT __completes_on = __decays_to<__completion_scheduler_of_t<_SetTag, env_of_t<_Sndr>, _Env>, decay_t<_Sch>>;
+
 //////////////////////////////////////////////////////////////////////////////////////////
 // __is_completion_query
 template <class _Query>

@@ -62,11 +62,10 @@ public:
   //! `apply_sender` is `noexcept`.
   //! @throws Any exception thrown by the underlying domain's `apply_sender`.
   _CCCL_EXEC_CHECK_DISABLE
-  template <class _Domain, class _Tag, class _Sndr, class... _Args>
-  _CCCL_API constexpr auto operator()(_Domain, _Tag, _Sndr&& __sndr, _Args&&... __args) const
-    noexcept(noexcept(__apply_domain_t<_Domain, _Tag, _Sndr, _Args...>{}.apply_sender(
-      _Tag{}, static_cast<_Sndr&&>(__sndr), static_cast<_Args&&>(__args)...)))
-      -> __apply_sender_result_t<__apply_domain_t<_Domain, _Tag, _Sndr, _Args...>, _Tag, _Sndr, _Args...>
+  _CCCL_TEMPLATE(class _Domain, class _Tag, class _Sndr, class... _Args)
+  _CCCL_REQUIRES(__has_apply_sender<__apply_domain_t<_Domain, _Tag, _Sndr, _Args...>, _Tag, _Sndr, _Args...>)
+  _CCCL_API constexpr decltype(auto) operator()(_Domain, _Tag, _Sndr&& __sndr, _Args&&... __args) const
+    noexcept(__nothrow_apply_sender<__apply_domain_t<_Domain, _Tag, _Sndr, _Args...>, _Tag, _Sndr, _Args...>)
   {
     using __dom_t _CCCL_NODEBUG_ALIAS = __apply_domain_t<_Domain, _Tag, _Sndr, _Args...>;
     //! Calls the algorithm specified by _Tag using the determined domain.

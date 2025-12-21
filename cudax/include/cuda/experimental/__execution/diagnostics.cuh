@@ -37,6 +37,8 @@ struct _WHERE;
 
 struct _WHAT;
 
+struct _WHY;
+
 struct _TO_FIX_THIS_ERROR;
 
 struct _IN_ALGORITHM;

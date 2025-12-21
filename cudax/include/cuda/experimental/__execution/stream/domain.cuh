@@ -61,32 +61,38 @@ struct __adapted_t
 template <class _Sndr, class _GetStream>
 struct _CCCL_TYPE_VISIBILITY_DEFAULT __sndr_t;
 
-_CCCL_GLOBAL_CONSTANT auto __get_stream_from_attrs =
-  __first_callable{get_stream, ::cuda::std::__compose(get_stream, get_completion_scheduler<set_value_t>)};
-
-_CCCL_GLOBAL_CONSTANT auto __get_stream_from_env =
-  __first_callable{get_stream, ::cuda::std::__compose(get_stream, get_scheduler)};
-
-using __get_stream_from_attrs_t = decltype(__get_stream_from_attrs);
-using __get_stream_from_env_t   = decltype(__get_stream_from_env);
-
 // Get the stream either the sender's attributes or from the receiver's environment.
 struct __get_stream_fn
 {
+  using __from_sch_env_t   = ::cuda::std::__compose_t<get_stream_t, get_scheduler_t>;
+  using __from_sch_attrs_t = ::cuda::std::__compose_t<get_stream_t, get_completion_scheduler_t<set_value_t>>;
+
   _CCCL_TEMPLATE(class _Sndr, class _Env)
-  _CCCL_REQUIRES((__callable<__get_stream_from_attrs_t, env_of_t<_Sndr>, const _Env&>
-                  || __callable<__get_stream_from_env_t, _Env>) )
+  _CCCL_REQUIRES(__callable<get_stream_t, env_of_t<_Sndr>> //
+                 || __callable<__from_sch_attrs_t, env_of_t<_Sndr>, _Env> //
+                 || __callable<get_stream_t, _Env> //
+                 || __callable<__from_sch_env_t, _Env>)
   _CCCL_API constexpr auto operator()(const _Sndr& __sndr, const _Env& __env) const noexcept -> stream_ref
   {
-    if constexpr (__callable<__get_stream_from_attrs_t, env_of_t<_Sndr>, const _Env&>)
+    if constexpr (__callable<get_stream_t, env_of_t<_Sndr>>)
     {
       // If the sender's attributes have a stream, use it.
-      return __get_stream_from_attrs(execution::get_env(__sndr), __env);
+      return get_stream(execution::get_env(__sndr));
+    }
+    else if constexpr (__callable<__from_sch_attrs_t, env_of_t<_Sndr>, _Env>)
+    {
+      // Otherwise, try to get the stream from the completion scheduler.
+      return __from_sch_attrs_t()(execution::get_env(__sndr), __env);
+    }
+    else if constexpr (__callable<get_stream_t, _Env>)
+    {
+      // Otherwise, try to get the stream from the receiver's environment.
+      return get_stream(__env);
     }
     else
     {
-      // Otherwise, try to get the stream from the receiver's environment.
-      return __get_stream_from_env(__env);
+      // Finally, try to get the stream from the scheduler.
+      return __from_sch_env_t()(__env);
     }
   }
 };
